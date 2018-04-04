@@ -27,7 +27,11 @@
     <ClCompile Include="PortalsApp.cpp" />
     <ClCompile Include="util\Camera.cpp" />
     <ClCompile Include="util\FirstPersonObject.cpp" />
+    <ClCompile Include="util\GeometryGenerator.cpp" />
     <ClCompile Include="util\MathFunctions.cpp" />
+    <ClCompile Include="util\Portal.cpp" />
+    <ClCompile Include="util\Room.cpp" />
+    <ClCompile Include="util\SpherePath.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework\d3dApp.h" />
@@ -39,9 +43,13 @@
     <ClInclude Include="PortalsApp.h" />
     <ClInclude Include="util\Camera.h" />
     <ClInclude Include="util\FirstPersonObject.h" />
+    <ClInclude Include="util\GeometryGenerator.h" />
     <ClInclude Include="util\Light.h" />
     <ClInclude Include="util\Macros.h" />
     <ClInclude Include="util\MathFunctions.h" />
+    <ClInclude Include="util\Portal.h" />
+    <ClInclude Include="util\Room.h" />
+    <ClInclude Include="util\SpherePath.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

@@ -4,6 +4,7 @@
 
 #include "Camera.h"
 #include "Light.h"
+#include "Room.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
@@ -36,9 +37,43 @@ protected:
   void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
+  void ReadRoomFile(const std::string& path);
+  void UpdateCameraAndPortals(float dt, bool modifyPortal);
+
   DirectionalLight mDirLights[3];
 
+  // Mouse
+  POINT mLastMousePos;
+  bool mRightButtonIsDown;
+
+  // Camera
   Camera mLeftCamera;
   Camera mRightCamera;
   Camera* mCurrentCamera;
+  XMMATRIX mLeftViewProj;
+  float mLeftViewScale;
+  XMMATRIX mRightViewProj;
+  float mRightViewScale;
+
+  // Room
+  Room mRoom;
+  PhongMaterial mWallsMaterial;
+  XMMATRIX mWallsTexTransform;
+  PhongMaterial mFloorMaterial;
+  XMMATRIX mFloorTexTransform;
+  PhongMaterial mCeilingMaterial;
+  XMMATRIX mCeilingTexTransform;
+
+  // Portal
+  Portal mOrangePortal;
+  Portal mBluePortal;
+  Portal* mCurrentPortal;
+  Portal* mOtherPortal;
+  bool mPlayerIntersectOrangePortal;
+  bool mPlayerIntersectBluePortal;
+
+  // Player
+  FirstPersonObject mPlayer;
+  PhongMaterial mPlayerMaterial;
+  XMMATRIX mPlayerTexTransform;
 };

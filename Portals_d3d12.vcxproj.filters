@@ -47,6 +47,18 @@
     <ClCompile Include="util\MathFunctions.cpp">
       <Filter>Source Files\util</Filter>
     </ClCompile>
+    <ClCompile Include="util\Room.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\GeometryGenerator.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\Portal.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\SpherePath.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework\d3dApp.h">
@@ -83,6 +95,18 @@
       <Filter>Source Files\util</Filter>
     </ClInclude>
     <ClInclude Include="util\MathFunctions.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\Room.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\GeometryGenerator.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\Portal.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\SpherePath.h">
       <Filter>Source Files\util</Filter>
     </ClInclude>
   </ItemGroup>
