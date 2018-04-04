@@ -122,4 +122,13 @@ std::wstring DxException::ToString()const
     return FunctionName + L" failed in " + Filename + L"; line " + std::to_wstring(LineNumber) + L"; error: " + msg;
 }
 
-
+// Added by me
+void dprintf(const char *format, ...)
+{
+  char buf[256];
+  va_list args;
+  va_start(args, format);
+  vsprintf_s(buf, 256, format, args);
+  va_end(args);
+  OutputDebugStringA(buf);
+}

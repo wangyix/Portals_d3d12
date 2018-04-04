@@ -25,6 +25,9 @@
     <ClCompile Include="framework\GameTimer.cpp" />
     <ClCompile Include="framework\MathHelper.cpp" />
     <ClCompile Include="PortalsApp.cpp" />
+    <ClCompile Include="util\Camera.cpp" />
+    <ClCompile Include="util\FirstPersonObject.cpp" />
+    <ClCompile Include="util\MathFunctions.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework\d3dApp.h" />
@@ -34,7 +37,11 @@
     <ClInclude Include="framework\GameTimer.h" />
     <ClInclude Include="framework\MathHelper.h" />
     <ClInclude Include="PortalsApp.h" />
+    <ClInclude Include="util\Camera.h" />
+    <ClInclude Include="util\FirstPersonObject.h" />
     <ClInclude Include="util\Light.h" />
+    <ClInclude Include="util\Macros.h" />
+    <ClInclude Include="util\MathFunctions.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -88,16 +95,22 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>./framework;./util;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);./framework;./util;</IncludePath>
+    <SourcePath>$(VC_SourcePath);</SourcePath>
+    <LibraryWPath>$(WindowsSDK_MetadataPath)</LibraryWPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>./framework;./util;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);./framework;./util;</IncludePath>
+    <SourcePath>$(VC_SourcePath);</SourcePath>
+    <LibraryWPath>$(WindowsSDK_MetadataPath)</LibraryWPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>./framework;./util;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <SourcePath>$(VC_SourcePath);</SourcePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>./framework;./util;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <SourcePath>$(VC_SourcePath);</SourcePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

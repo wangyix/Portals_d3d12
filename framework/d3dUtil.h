@@ -286,3 +286,6 @@ struct Texture
 #ifndef ReleaseCom
 #define ReleaseCom(x) { if(x){ x->Release(); x = 0; } }
 #endif
+
+// Added by me
+void dprintf(const char *format, ...);

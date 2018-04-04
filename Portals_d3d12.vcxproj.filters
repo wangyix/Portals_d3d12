@@ -38,6 +38,15 @@
     <ClCompile Include="framework\MathHelper.cpp">
       <Filter>Source Files\framework</Filter>
     </ClCompile>
+    <ClCompile Include="util\Camera.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\FirstPersonObject.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\MathFunctions.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework\d3dApp.h">
@@ -62,6 +71,18 @@
       <Filter>Source Files\framework</Filter>
     </ClInclude>
     <ClInclude Include="util\Light.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\Camera.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\Macros.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\FirstPersonObject.h">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="util\MathFunctions.h">
       <Filter>Source Files\util</Filter>
     </ClInclude>
   </ItemGroup>

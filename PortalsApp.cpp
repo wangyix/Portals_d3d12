@@ -1,7 +1,7 @@
 #include "PortalsApp.h"
 
 PortalsApp::PortalsApp(HINSTANCE hInstance)
-  : D3DApp(hInstance) {
+  : D3DApp(hInstance), mCurrentCamera(&mLeftCamera) {
   
 }
 

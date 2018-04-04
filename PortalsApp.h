@@ -2,6 +2,7 @@
 
 #include "d3dApp.h" // Include this first
 
+#include "Camera.h"
 #include "Light.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -37,4 +38,7 @@ protected:
 private:
   DirectionalLight mDirLights[3];
 
+  Camera mLeftCamera;
+  Camera mRightCamera;
+  Camera* mCurrentCamera;
 };
