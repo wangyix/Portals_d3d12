@@ -1,6 +1,8 @@
 #pragma once
 
-#include "d3dApp.h"
+#include "d3dApp.h" // Include this first
+
+#include "Light.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
@@ -33,5 +35,6 @@ protected:
   void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
+  DirectionalLight mDirLights[3];
 
 };
