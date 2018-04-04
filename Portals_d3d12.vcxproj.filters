@@ -1,0 +1,65 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\framework">
+      <UniqueIdentifier>{72503730-d336-4018-b56b-abfc758bcf03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\util">
+      <UniqueIdentifier>{eb8adaee-b156-4e05-9308-970b3fda02a0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\fx">
+      <UniqueIdentifier>{abf9c308-915d-4e3c-a208-beb539ff5ce8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="framework\d3dApp.cpp">
+      <Filter>Source Files\framework</Filter>
+    </ClCompile>
+    <ClCompile Include="framework\d3dUtil.cpp">
+      <Filter>Source Files\framework</Filter>
+    </ClCompile>
+    <ClCompile Include="framework\GameTimer.cpp">
+      <Filter>Source Files\framework</Filter>
+    </ClCompile>
+    <ClCompile Include="PortalsApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="framework\DDSTextureLoader.cpp">
+      <Filter>Source Files\framework</Filter>
+    </ClCompile>
+    <ClCompile Include="framework\MathHelper.cpp">
+      <Filter>Source Files\framework</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="framework\d3dApp.h">
+      <Filter>Source Files\framework</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\d3dUtil.h">
+      <Filter>Source Files\framework</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\GameTimer.h">
+      <Filter>Source Files\framework</Filter>
+    </ClInclude>
+    <ClInclude Include="PortalsApp.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\d3dx12.h">
+      <Filter>Source Files\framework</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\DDSTextureLoader.h">
+      <Filter>Source Files\framework</Filter>
+    </ClInclude>
+    <ClInclude Include="framework\MathHelper.h">
+      <Filter>Source Files\framework</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
