@@ -12,6 +12,76 @@ namespace {
     return !ifs->eof();
   }
 
+  std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers()
+  {
+    // Applications usually only need a handful of samplers.  So just define them all up front
+    // and keep them available as part of the root signature.  
+
+    const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+      0, // shaderRegister
+      D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+    const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
+      1, // shaderRegister
+      D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP); // addressW
+
+    const CD3DX12_STATIC_SAMPLER_DESC linearWrap(
+      2, // shaderRegister
+      D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+    const CD3DX12_STATIC_SAMPLER_DESC linearClamp(
+      3, // shaderRegister
+      D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP); // addressW
+
+    const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+      4, // shaderRegister
+      D3D12_FILTER_ANISOTROPIC, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressW
+      0.0f,                             // mipLODBias
+      8);                               // maxAnisotropy
+
+    const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
+      5, // shaderRegister
+      D3D12_FILTER_ANISOTROPIC, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressW
+      0.0f,                              // mipLODBias
+      8);                                // maxAnisotropy
+
+    const CD3DX12_STATIC_SAMPLER_DESC shadow(
+      6, // shaderRegister
+      D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, // filter
+      D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressW
+      0.0f,                               // mipLODBias
+      16,                                 // maxAnisotropy
+      D3D12_COMPARISON_FUNC_LESS_EQUAL,
+      D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK);
+
+    return {
+      pointWrap, pointClamp,
+      linearWrap, linearClamp,
+      anisotropicWrap, anisotropicClamp,
+      shadow
+    };
+  }
+
 } // namespace
 
 PortalsApp::PortalsApp(HINSTANCE hInstance)
@@ -22,6 +92,9 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
     mOtherPortal(&mBluePortal),
     mPlayerIntersectOrangePortal(false),
     mPlayerIntersectBluePortal(false) {
+  mClientWidth = 1280;
+  mClientHeight = 720;
+
   // 3 directional lights
   mDirLights[0].Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
   mDirLights[0].Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
@@ -63,30 +136,143 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
   mPlayerMaterial.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
   mPlayerMaterial.Reflect = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
   mPlayerTexTransform = XMMatrixIdentity();
+
+  mLeftCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
+  mRightCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
+  mRightCamera.AttachToObject(&mPlayer);
 }
 
 PortalsApp::~PortalsApp() {
-
+  if (md3dDevice != nullptr)
+    FlushCommandQueue();
 }
 
 bool PortalsApp::Initialize() {
   if (!D3DApp::Initialize())
     return false;
   
-  ReadRoomFile(ROOM_FILE_PATH);
+  // Reset the command list to prep for initialization commands.
+  ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-  mLeftCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
-  mRightCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
-  mRightCamera.AttachToObject(&mPlayer);
+  LoadTexture("orange_portal", L"textures/orange_portal2.dds");
+  LoadTexture("blue_portal", L"textures/blue_portal2.dds");
+  LoadTexture("wall", L"textures/floor.dds");
+  LoadTexture("player", L"textures/stone.dds");
 
-  // Create shader resources from textures
+  BuildRootSignature();
+  BuildDescriptorHeaps();
 
-  // Build geometry buffers for room, portal, player
+  
+  
+  ReadRoomFile("room.txt");
 
   return true;
 }
 
-void PortalsApp::OnResize() {}
+void PortalsApp::LoadTexture(const std::string& name, const std::wstring& path) {
+  Texture& texture = mTextures[name];
+  texture.Name = name;
+  texture.Filename = path;
+  ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+    mCommandList.Get(), path.c_str(), texture.Resource, texture.UploadHeap));
+}
+
+void PortalsApp::BuildRootSignature() {
+  // Portal textures
+  CD3DX12_DESCRIPTOR_RANGE texTable0;
+  texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+
+  // Material textures
+  CD3DX12_DESCRIPTOR_RANGE texTable1;
+  texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2, 0);
+
+  CD3DX12_ROOT_PARAMETER rootParameters[5];
+  // Order from most frequent to least frequent.
+  rootParameters[0].InitAsConstantBufferView(0);      // cbPerObject
+  rootParameters[1].InitAsConstantBufferView(1);      // cbPass
+  rootParameters[2].InitAsShaderResourceView(0, 1);   // gMaterialData
+  // gPortalADiffuseMap, gPortalBDiffuseMap
+  rootParameters[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+  // gTextureMaps
+  rootParameters[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+  const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+      0,                                  // shaderRegister
+      D3D12_FILTER_ANISOTROPIC,           // filter
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,    // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,    // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_WRAP,    // addressW
+      0.0f,                               // mipLODBias
+      8);                                 // maxAnisotropy
+  const CD3DX12_STATIC_SAMPLER_DESC anisotropicBlackBorder(
+      1,                                            // shaderRegister
+      D3D12_FILTER_ANISOTROPIC,                     // filter
+      D3D12_TEXTURE_ADDRESS_MODE_BORDER,            // addressU
+      D3D12_TEXTURE_ADDRESS_MODE_BORDER,            // addressV
+      D3D12_TEXTURE_ADDRESS_MODE_BORDER,            // addressW
+      0.0f,                                         // mipLODBias
+      8,                                            // maxAnisotropy
+      D3D12_COMPARISON_FUNC_LESS_EQUAL,             // comparisonFunc
+      D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK); // borderColor
+  CD3DX12_STATIC_SAMPLER_DESC staticSamplers[2] = { anisotropicWrap, anisotropicBlackBorder };
+
+  CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, rootParameters, 2, staticSamplers,
+      D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+  
+  // Create root signature
+  ComPtr<ID3DBlob> serializedRootSig = nullptr;
+  ComPtr<ID3DBlob> errorBlob = nullptr;
+  HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+    serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+  if (errorBlob != nullptr) {
+    ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+  }
+  ThrowIfFailed(hr);
+  ThrowIfFailed(md3dDevice->CreateRootSignature(
+      0,
+      serializedRootSig->GetBufferPointer(),
+      serializedRootSig->GetBufferSize(),
+      IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+}
+
+void PortalsApp::BuildDescriptorHeaps() {
+  // Create the SRV heap.
+  D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+  srvHeapDesc.NumDescriptors = 4;
+  srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+  CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(
+      mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+  ComPtr<ID3D12Resource> tex2DList[4] = {
+    mTextures["orange_portal"].Resource,
+    mTextures["blue_portal"].Resource,
+    mTextures["wall"].Resource,
+    mTextures["player"].Resource
+  };
+
+  D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+  srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srvDesc.Texture2D.MostDetailedMip = 0;
+  srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+  for (int i = 0; i < 4; ++i) {
+    srvDesc.Format = tex2DList[i]->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(tex2DList[i].Get(), &srvDesc, hDescriptor);
+    // Next descriptor
+    hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+  }
+}
+
+
+
+
+void PortalsApp::OnResize() {
+  D3DApp::OnResize();
+}
 
 void PortalsApp::Update(const GameTimer& gt) {
   // Portals cannot be changed if either portal intersects the player or the spectator camera
@@ -134,7 +320,11 @@ void PortalsApp::OnMouseMove(WPARAM btnState, int x, int y) {
 
 
 void PortalsApp::ReadRoomFile(const std::string& path) {
-  std::ifstream ifs(path);
+  std::ifstream ifs(path, std::ifstream::in);
+  if (!ifs.good()) {
+    throw std::exception("Could not open room file.");
+  }
+
   std::string line;
   float a, b, c, d, e, f;
 
@@ -316,9 +506,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
       return 0;
 
     return theApp.Run();
-  } catch (DxException& e)
-  {
+  } catch (DxException& e) {
     MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+    return 0;
+  } catch (std::exception& e) {
+    std::string error(e.what());
+    std::wstring ws;
+    std::copy(error.begin(), error.end(), std::back_inserter(ws));
+    MessageBox(nullptr, ws.c_str(), L"Error", MB_OK);
     return 0;
   }
 }

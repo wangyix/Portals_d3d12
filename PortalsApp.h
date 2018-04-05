@@ -3,20 +3,42 @@
 #include "d3dApp.h" // Include this first
 
 #include "Camera.h"
+#include "FrameResource.h"
 #include "Light.h"
 #include "Room.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
 
+using Microsoft::WRL::ComPtr;
 using namespace DirectX;
-
-
-class Portal;
 
 
 class PortalsApp : public D3DApp {
 public:
+  struct RenderItem {
+    XMFLOAT4X4 World = MathHelper::Identity4x4();
+    XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+
+    // Dirty flag indicating the object data has changed and we need to update the constant buffer.
+    // Because we have an object cbuffer for each FrameResource, we have to apply the
+    // update to each FrameResource.  Thus, when we modify obect data we should set 
+    // NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
+    int NumFramesDirty = gNumFrameResources;
+
+    // Index into GPU constant buffer corresponding to the ObjectCB for this render item.
+    UINT ObjCBIndex = -1;
+
+    Material* Mat = nullptr;
+    MeshGeometry* Geo = nullptr;
+    D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    // DrawIndexedInstanced parameters.
+    UINT IndexCount = 0;
+    UINT StartIndexLocation = 0;
+    int BaseVertexLocation = 0;
+  };
+
   PortalsApp(HINSTANCE hInstance);
   ~PortalsApp() override;
 
@@ -37,7 +59,12 @@ protected:
   void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
+  void LoadTexture(const std::string& name, const std::wstring& path);
+  void BuildRootSignature();
+  void BuildDescriptorHeaps();
+
   void ReadRoomFile(const std::string& path);
+  
   void UpdateCameraAndPortals(float dt, bool modifyPortal);
 
   DirectionalLight mDirLights[3];
@@ -76,4 +103,28 @@ private:
   FirstPersonObject mPlayer;
   PhongMaterial mPlayerMaterial;
   XMMATRIX mPlayerTexTransform;
+
+  // D3D12 stuff
+  std::vector<FrameResource> mFrameResources;
+  FrameResource* mCurrentFrameResource;
+  int mCurrentFrameResourceIndex;
+
+  UINT mCbvSrvDescriptorSize;
+
+  ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+
+  ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
+  std::unordered_map<std::string, MeshGeometry> mGeometries;
+  std::unordered_map<std::string, Material> mMaterials;
+  std::unordered_map<std::string, Texture> mTextures;
+  std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+
+  std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+
+  ComPtr<ID3D12PipelineState> mPSO = nullptr;
+
+  std::vector<RenderItem> mRenderItems;
+
+  PassConstants mMainPassCB;
 };

@@ -27,6 +27,7 @@
     <ClCompile Include="PortalsApp.cpp" />
     <ClCompile Include="util\Camera.cpp" />
     <ClCompile Include="util\FirstPersonObject.cpp" />
+    <ClCompile Include="util\FrameResource.cpp" />
     <ClCompile Include="util\GeometryGenerator.cpp" />
     <ClCompile Include="util\MathFunctions.cpp" />
     <ClCompile Include="util\Portal.cpp" />
@@ -40,9 +41,11 @@
     <ClInclude Include="framework\DDSTextureLoader.h" />
     <ClInclude Include="framework\GameTimer.h" />
     <ClInclude Include="framework\MathHelper.h" />
+    <ClInclude Include="framework\UploadBuffer.h" />
     <ClInclude Include="PortalsApp.h" />
     <ClInclude Include="util\Camera.h" />
     <ClInclude Include="util\FirstPersonObject.h" />
+    <ClInclude Include="util\FrameResource.h" />
     <ClInclude Include="util\GeometryGenerator.h" />
     <ClInclude Include="util\Light.h" />
     <ClInclude Include="util\Macros.h" />

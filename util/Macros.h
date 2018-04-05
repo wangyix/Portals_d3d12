@@ -3,7 +3,6 @@
 
 
 // used in main
-#define ROOM_FILE_PATH "./RoomFiles/room.txt"
 #define PORTAL_ITERATIONS 30
 
 #define ORANGE_STENCIL_REF 10
