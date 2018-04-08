@@ -594,10 +594,10 @@ XMMATRIX Portal::CalculateVirtualizationMatrix(const Portal &LookThru, const Por
 }
 
 
-void Portal::BuildMeshData(GeometryGenerator::MeshData &PortalMesh,	UINT *PortalBoxIndexCount_ptr)
+void Portal::BuildBoxMeshData(GeometryGenerator::MeshData *PortalMesh)
 {
-	PortalMesh.Vertices.resize(PORTAL_BOX_N_SIDES*2 + 1);
-	PortalMesh.Indices.resize(PORTAL_BOX_N_SIDES*9);
+	PortalMesh->Vertices.resize(PORTAL_BOX_N_SIDES*2 + 1);
+	PortalMesh->Indices.resize(PORTAL_BOX_N_SIDES*9);
 
 	// NOTE: For vertices, only the position matters
 
@@ -616,56 +616,53 @@ void Portal::BuildMeshData(GeometryGenerator::MeshData &PortalMesh,	UINT *Portal
 	{
 		float Theta = (float)i * RadiansPerSlice;
 		Vert.Position = XMFLOAT3(R*cosf(Theta), R*sinf(Theta), 0.0f);
-		PortalMesh.Vertices[i] = Vert;
+		PortalMesh->Vertices[i] = Vert;
 
 		Vert.Position.z = -PORTAL_BOX_DEPTH;
-		PortalMesh.Vertices[PORTAL_BOX_N_SIDES+i] = Vert;
+		PortalMesh->Vertices[PORTAL_BOX_N_SIDES+i] = Vert;
 	}
 	// center point on back face
 	const int BACK_CENTER_INDEX = 2*PORTAL_BOX_N_SIDES;
 	Vert.Position = XMFLOAT3(0.0f, 0.0f, -PORTAL_BOX_DEPTH);
-	PortalMesh.Vertices[BACK_CENTER_INDEX] = Vert;
+	PortalMesh->Vertices[BACK_CENTER_INDEX] = Vert;
 	
 
 	// portalbox back face indices
 	int IndicesCount = 0;
 	for (int i=0; i<PORTAL_BOX_N_SIDES-1; ++i)
 	{
-		PortalMesh.Indices[IndicesCount] = BACK_CENTER_INDEX;
-		PortalMesh.Indices[IndicesCount+1] = PORTAL_BOX_N_SIDES+i;
-		PortalMesh.Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES+i+1;
+		PortalMesh->Indices[IndicesCount] = BACK_CENTER_INDEX;
+		PortalMesh->Indices[IndicesCount+1] = PORTAL_BOX_N_SIDES+i;
+		PortalMesh->Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES+i+1;
 		IndicesCount += 3;
 	}
-	PortalMesh.Indices[IndicesCount] = BACK_CENTER_INDEX;
-	PortalMesh.Indices[IndicesCount+1] = BACK_CENTER_INDEX-1;
-	PortalMesh.Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES;
+	PortalMesh->Indices[IndicesCount] = BACK_CENTER_INDEX;
+	PortalMesh->Indices[IndicesCount+1] = BACK_CENTER_INDEX-1;
+	PortalMesh->Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES;
 	IndicesCount += 3;
 
 
 	// portalbox side rectangles
 	for (int i=0; i<PORTAL_BOX_N_SIDES-1; ++i)
 	{
-		PortalMesh.Indices[IndicesCount] = i;
-		PortalMesh.Indices[IndicesCount+1] = i+1;
-		PortalMesh.Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES+i+1;
+		PortalMesh->Indices[IndicesCount] = i;
+		PortalMesh->Indices[IndicesCount+1] = i+1;
+		PortalMesh->Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES+i+1;
 
-		PortalMesh.Indices[IndicesCount+3] = i;
-		PortalMesh.Indices[IndicesCount+4] = PORTAL_BOX_N_SIDES+i+1;
-		PortalMesh.Indices[IndicesCount+5] = PORTAL_BOX_N_SIDES+i;
+		PortalMesh->Indices[IndicesCount+3] = i;
+		PortalMesh->Indices[IndicesCount+4] = PORTAL_BOX_N_SIDES+i+1;
+		PortalMesh->Indices[IndicesCount+5] = PORTAL_BOX_N_SIDES+i;
 
 		IndicesCount += 6;
 	}
-	PortalMesh.Indices[IndicesCount] = PORTAL_BOX_N_SIDES-1;
-	PortalMesh.Indices[IndicesCount+1] = 0;
-	PortalMesh.Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES;
+	PortalMesh->Indices[IndicesCount] = PORTAL_BOX_N_SIDES-1;
+	PortalMesh->Indices[IndicesCount+1] = 0;
+	PortalMesh->Indices[IndicesCount+2] = PORTAL_BOX_N_SIDES;
 
-	PortalMesh.Indices[IndicesCount+3] = PORTAL_BOX_N_SIDES-1;
-	PortalMesh.Indices[IndicesCount+4] = PORTAL_BOX_N_SIDES;
-	PortalMesh.Indices[IndicesCount+5] = BACK_CENTER_INDEX-1;
+	PortalMesh->Indices[IndicesCount+3] = PORTAL_BOX_N_SIDES-1;
+	PortalMesh->Indices[IndicesCount+4] = PORTAL_BOX_N_SIDES;
+	PortalMesh->Indices[IndicesCount+5] = BACK_CENTER_INDEX-1;
 
 	IndicesCount += 6;
-
-
-	*PortalBoxIndexCount_ptr = IndicesCount;
 }
 

@@ -56,8 +56,7 @@ void GeometryGenerator::Tessellate(std::vector<XMFLOAT3> &Positions, std::vector
 }
 
 
-void GeometryGenerator::GenerateSphere(MeshData &Mesh, float Radius, unsigned int Tessellations,
-														UINT *SphereIndexCount_ptr)
+void GeometryGenerator::GenerateSphere(MeshData &Mesh, float Radius, unsigned int Tessellations)
 {
 	Mesh.Vertices.clear();
 	Mesh.Indices.clear();
@@ -114,6 +113,4 @@ void GeometryGenerator::GenerateSphere(MeshData &Mesh, float Radius, unsigned in
 		float Phi = acosf(PDir.y);
 		Mesh.Vertices[i].TexCoord = XMFLOAT2(Theta/(2.0f*PI), Phi/PI);
 	}
-
-	*SphereIndexCount_ptr = Mesh.Indices.size();
 }

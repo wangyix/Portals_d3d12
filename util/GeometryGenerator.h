@@ -25,8 +25,7 @@ public:
 
 
 	static void Tessellate(std::vector<XMFLOAT3> &Positions, std::vector<UINT> &Indices);
-	static void GenerateSphere(MeshData &Mesh, float Radius, unsigned int Tessellations, 
-													UINT *SphereIndexCount_ptr);
+	static void GenerateSphere(MeshData &Mesh, float Radius, unsigned int Tessellations);
 };
 
 #endif

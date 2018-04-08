@@ -63,6 +63,7 @@ private:
   void BuildRootSignature();
   void BuildDescriptorHeaps();
   void BuildShadersAndInputLayout();
+  void BuildShapeGeometry();
 
   void ReadRoomFile(const std::string& path);
   

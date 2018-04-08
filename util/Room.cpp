@@ -709,16 +709,14 @@ void Room::PortalRelocate(XMFLOAT3 S, XMFLOAT3 Dir, Portal *ThisPortal, const Po
 
 
 
-void Room::BuildMeshData(GeometryGenerator::MeshData &RoomMesh, 
-						UINT *WallsIndexCount_ptr, UINT *WallsIBOffset_ptr, UINT *WallsVBOffset_ptr,
-						UINT *FloorIndexCount_ptr, UINT *FloorIBOffset_ptr, UINT *FloorVBOffset_ptr,
-						UINT *CeilingIndexCount_ptr, UINT *CeilingIBOffset_ptr, UINT *CeilingVBOffset_ptr)const
+void Room::BuildMeshData(GeometryGenerator::MeshData *RoomMesh, SubmeshGeometry *WallsSubmesh,
+      SubmeshGeometry *FloorSubmesh, SubmeshGeometry *CeilingSubmesh) const
 {
-	RoomMesh.Vertices.clear();
-	RoomMesh.Indices.clear();
+	RoomMesh->Vertices.clear();
+	RoomMesh->Indices.clear();
 
 
-	UINT WallsVertexCount = 0;
+	INT WallsVertexCount = 0;
 	UINT WallsIndexCount = 0;
 	GeometryGenerator::Vertex Vert;
 	for (unsigned int P=0; P<BoundaryPolygons.size(); ++P)
@@ -743,42 +741,42 @@ void Room::BuildMeshData(GeometryGenerator::MeshData &RoomMesh,
 			// bottom left
 			Vert.Position = XMFLOAT3(V.x, FloorY, V.y);
 			Vert.TexCoord = XMFLOAT2(0.0f, WallHeight);
-			RoomMesh.Vertices.push_back(Vert);
+			RoomMesh->Vertices.push_back(Vert);
 
 			// top left
 			Vert.Position = XMFLOAT3(V.x, CeilingY, V.y);
 			Vert.TexCoord = XMFLOAT2(0.0f, 0.0f);
-			RoomMesh.Vertices.push_back(Vert);
+			RoomMesh->Vertices.push_back(Vert);
 			
 			// top right
 			Vert.Position = XMFLOAT3(U.x, CeilingY, U.y);
 			Vert.TexCoord = XMFLOAT2(WallWidth, 0.0f);
-			RoomMesh.Vertices.push_back(Vert);
+			RoomMesh->Vertices.push_back(Vert);
 
 			// bottom right
 			Vert.Position = XMFLOAT3(U.x, FloorY, U.y);
 			Vert.TexCoord = XMFLOAT2(WallWidth, WallHeight);
-			RoomMesh.Vertices.push_back(Vert);
+			RoomMesh->Vertices.push_back(Vert);
 
 
 			// add to indices
 
 			// upper left triangle
-			RoomMesh.Indices.push_back(WallsVertexCount);
-			RoomMesh.Indices.push_back(WallsVertexCount + 1);
-			RoomMesh.Indices.push_back(WallsVertexCount + 2);
+			RoomMesh->Indices.push_back(WallsVertexCount);
+			RoomMesh->Indices.push_back(WallsVertexCount + 1);
+			RoomMesh->Indices.push_back(WallsVertexCount + 2);
 			// bottom right triangle
-			RoomMesh.Indices.push_back(WallsVertexCount);
-			RoomMesh.Indices.push_back(WallsVertexCount + 2);
-			RoomMesh.Indices.push_back(WallsVertexCount + 3);
+			RoomMesh->Indices.push_back(WallsVertexCount);
+			RoomMesh->Indices.push_back(WallsVertexCount + 2);
+			RoomMesh->Indices.push_back(WallsVertexCount + 3);
 
 			WallsVertexCount += 4;
 			WallsIndexCount += 6; 
 		}
 	}
-	*WallsIndexCount_ptr = WallsIndexCount;
-	*WallsIBOffset_ptr = 0;
-	*WallsVBOffset_ptr = 0;
+  WallsSubmesh->IndexCount = WallsIndexCount;
+  WallsSubmesh->StartIndexLocation = 0;
+  WallsSubmesh->BaseVertexLocation = 0;
 
 	//dprintf("Xminmax [%f %f] Zminmax [%f %f]\n",MinX,MaxX,MinZ,MaxZ);
 
@@ -786,9 +784,9 @@ void Room::BuildMeshData(GeometryGenerator::MeshData &RoomMesh,
 	float FloorHeight = MaxZ - MinZ;
 
 	// add floor offsets
-	*FloorIndexCount_ptr = 6;
-	*FloorIBOffset_ptr = WallsIndexCount;
-	*FloorVBOffset_ptr = WallsVertexCount;
+  FloorSubmesh->IndexCount = 6;
+  FloorSubmesh->StartIndexLocation = WallsIndexCount;
+  FloorSubmesh->BaseVertexLocation = WallsVertexCount;
 
 	// add floor vertices
 	Vert.Normal = XMFLOAT3(0.0f, 1.0f, 0.0f);
@@ -797,36 +795,36 @@ void Room::BuildMeshData(GeometryGenerator::MeshData &RoomMesh,
 	// bottom left
 	Vert.Position = XMFLOAT3(MinX, FloorY, MinZ);
 	Vert.TexCoord = XMFLOAT2(0.0f, FloorHeight);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// top left
 	Vert.Position = XMFLOAT3(MinX, FloorY, MaxZ);
 	Vert.TexCoord = XMFLOAT2(0.0f, 0.0f);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// top right
 	Vert.Position = XMFLOAT3(MaxX, FloorY, MaxZ);
 	Vert.TexCoord = XMFLOAT2(FloorWidth, 0.0f);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// bottom right
 	Vert.Position = XMFLOAT3(MaxX, FloorY, MinZ);
 	Vert.TexCoord = XMFLOAT2(FloorWidth, FloorHeight);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// add floor indices
-	RoomMesh.Indices.push_back(0);
-	RoomMesh.Indices.push_back(1);
-	RoomMesh.Indices.push_back(2);
-	RoomMesh.Indices.push_back(0);
-	RoomMesh.Indices.push_back(2);
-	RoomMesh.Indices.push_back(3);
+	RoomMesh->Indices.push_back(0);
+	RoomMesh->Indices.push_back(1);
+	RoomMesh->Indices.push_back(2);
+	RoomMesh->Indices.push_back(0);
+	RoomMesh->Indices.push_back(2);
+	RoomMesh->Indices.push_back(3);
 
 
 	// add ceiling offsets
-	*CeilingIndexCount_ptr = 6;
-	*CeilingIBOffset_ptr = WallsIndexCount + 6;
-	*CeilingVBOffset_ptr = WallsVertexCount + 4;
+  CeilingSubmesh->IndexCount = 6u;
+  CeilingSubmesh->StartIndexLocation = WallsIndexCount + 6u;
+  CeilingSubmesh->BaseVertexLocation = WallsVertexCount + 4;
 
 	// add ceiling vertices
 	Vert.Normal = XMFLOAT3(0.0f, -1.0f, 0.0f);
@@ -835,28 +833,28 @@ void Room::BuildMeshData(GeometryGenerator::MeshData &RoomMesh,
 	// bottom left
 	Vert.Position = XMFLOAT3(MinX, CeilingY, MinZ);
 	Vert.TexCoord = XMFLOAT2(0.0f, FloorHeight);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// bottom right
 	Vert.Position = XMFLOAT3(MaxX, CeilingY, MinZ);
 	Vert.TexCoord = XMFLOAT2(FloorWidth, FloorHeight);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// top right
 	Vert.Position = XMFLOAT3(MaxX, CeilingY, MaxZ);
 	Vert.TexCoord = XMFLOAT2(FloorWidth, 0.0f);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// top left
 	Vert.Position = XMFLOAT3(MinX, CeilingY, MaxZ);
 	Vert.TexCoord = XMFLOAT2(0.0f, 0.0f);
-	RoomMesh.Vertices.push_back(Vert);
+	RoomMesh->Vertices.push_back(Vert);
 
 	// add ceiling indices
-	RoomMesh.Indices.push_back(0);
-	RoomMesh.Indices.push_back(2);
-	RoomMesh.Indices.push_back(3);
-	RoomMesh.Indices.push_back(0);
-	RoomMesh.Indices.push_back(1);
-	RoomMesh.Indices.push_back(2);
+	RoomMesh->Indices.push_back(0);
+	RoomMesh->Indices.push_back(2);
+	RoomMesh->Indices.push_back(3);
+	RoomMesh->Indices.push_back(0);
+	RoomMesh->Indices.push_back(1);
+	RoomMesh->Indices.push_back(2);
 }

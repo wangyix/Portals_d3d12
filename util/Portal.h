@@ -72,7 +72,7 @@ public:
 
 	static XMMATRIX CalculateVirtualizationMatrix(const Portal &LookThru, const Portal &Other);
 
-	static void BuildMeshData(GeometryGenerator::MeshData &PortalMesh, UINT *PortalBoxIndexCount_ptr);
+	static void BuildBoxMeshData(GeometryGenerator::MeshData *PortalMesh);
 	
 	XMFLOAT3 SpherePathCollision(float SphereRadius, XMFLOAT3 S, XMFLOAT3 Dir, float MoveDist,
 									float *XDist_ptr, float *RedirectRatio_ptr, XMFLOAT3 *RedirectDir_ptr)const;

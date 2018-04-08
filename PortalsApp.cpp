@@ -1,5 +1,6 @@
 #include "PortalsApp.h"
 
+#include "GeometryGenerator.h"
 #include "SpherePath.h"
 
 namespace {
@@ -162,7 +163,7 @@ bool PortalsApp::Initialize() {
   BuildRootSignature();
   BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
-  
+  BuildShapeGeometry();
   
   ReadRoomFile("room.txt");
 
@@ -276,15 +277,15 @@ void PortalsApp::BuildShadersAndInputLayout() {
       { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr }};
-  mShaders["PortalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
-  mShaders["PortalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
+  mShaders["portalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
+  mShaders["portalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
 
   defines[1] = { "DRAW_PORTAL_A", nullptr };
   defines[2] = { "DRAW_PORTAL_B", nullptr };
-  mShaders["DefaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
-  mShaders["DefaultPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
+  mShaders["defaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
+  mShaders["defaultPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
   defines[3] = { "CLIP_PLANE", nullptr };
-  mShaders["DefaultClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
+  mShaders["defaultClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
 
   mInputLayout = {
     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -293,6 +294,99 @@ void PortalsApp::BuildShadersAndInputLayout() {
   };
 }
 
+void PortalsApp::BuildShapeGeometry() {
+  UINT numTotalIndices = 0;
+  INT numTotalVertices = 0;
+
+  // Generate room mesh and wall, floor, ceiling submeshes.
+  SubmeshGeometry wallsSubmesh;
+  SubmeshGeometry floorSubmesh;
+  SubmeshGeometry ceilingSubmesh;
+  GeometryGenerator::MeshData roomMesh;
+  mRoom.BuildMeshData(&roomMesh, &wallsSubmesh, &floorSubmesh, &ceilingSubmesh);
+  SubmeshGeometry roomSubmesh;
+  roomSubmesh.IndexCount = roomMesh.Indices.size();
+  roomSubmesh.StartIndexLocation = numTotalIndices;
+  roomSubmesh.BaseVertexLocation = numTotalVertices;
+  numTotalIndices += roomMesh.Indices.size();
+  numTotalVertices += roomMesh.Vertices.size();
+
+  // Generate player mesh and submesh.
+  GeometryGenerator::MeshData playerMesh;
+  GeometryGenerator::GenerateSphere(playerMesh, 1.0f, 3);
+  SubmeshGeometry playerSubmesh;
+  playerSubmesh.IndexCount = playerMesh.Indices.size();
+  playerSubmesh.StartIndexLocation = numTotalIndices;
+  playerSubmesh.BaseVertexLocation = numTotalVertices;
+  numTotalIndices += playerMesh.Indices.size();
+  numTotalVertices += playerMesh.Vertices.size();
+
+  // Generate portal-box mesh and submesh
+  GeometryGenerator::MeshData portalBoxMesh;
+  Portal::BuildBoxMeshData(&portalBoxMesh);
+  SubmeshGeometry portalBoxSubmesh;
+  portalBoxSubmesh.IndexCount = portalBoxMesh.Indices.size();
+  portalBoxSubmesh.StartIndexLocation = numTotalIndices;
+  portalBoxSubmesh.BaseVertexLocation = numTotalVertices;
+  numTotalIndices += portalBoxMesh.Indices.size();
+  numTotalVertices += portalBoxMesh.Vertices.size();
+
+  // Concatenate room and player mesh vertices into one vector.
+  std::vector<Vertex> vertices(numTotalVertices);
+  int k = 0;
+  for (size_t i = 0; i < roomMesh.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = roomMesh.Vertices[i].Position;
+    vertices[k].Normal = roomMesh.Vertices[i].Normal;
+    vertices[k].TexC = roomMesh.Vertices[i].TexCoord;
+  }
+  for (size_t i = 0; i < playerMesh.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = playerMesh.Vertices[i].Position;
+    vertices[k].Normal = playerMesh.Vertices[i].Normal;
+    vertices[k].TexC = playerMesh.Vertices[i].TexCoord;
+  }
+  for (size_t i = 0; i < portalBoxMesh.Vertices.size(); ++i, ++k) {
+    vertices[k].Pos = portalBoxMesh.Vertices[i].Position;
+    vertices[k].Normal = portalBoxMesh.Vertices[i].Normal;
+    vertices[k].TexC = portalBoxMesh.Vertices[i].TexCoord;
+  }
+
+  // Concatenate room and player mesh indices into one vector.
+  std::vector<std::uint16_t> indices(numTotalIndices);
+  k = 0;
+  for (size_t i = 0; i < roomMesh.Indices.size(); ++i, ++k) {
+    indices[k] = static_cast<std::uint16_t>(roomMesh.Indices[i]);
+  }
+  for (size_t i = 0; i < playerMesh.Indices.size(); ++i, ++k) {
+    indices[k] = static_cast<std::uint16_t>(playerMesh.Indices[i]);
+  }
+  for (size_t i = 0; i < portalBoxMesh.Indices.size(); ++i, ++k) {
+    indices[k] = static_cast<std::uint16_t>(portalBoxMesh.Indices[i]);
+  }
+  
+  // Generate MeshGeometry of concatenated meshes.
+  const UINT vbByteSize = vertices.size() * sizeof(Vertex);
+  const UINT ibByteSize = indices.size() * sizeof(std::uint16_t);
+  MeshGeometry* geo = &mGeometries["shapeGeo"];
+  geo->Name = "shapeGeo";
+  ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+  CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+  ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+  CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+  geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+    mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+  geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+    mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+  geo->VertexByteStride = sizeof(Vertex);
+  geo->VertexBufferByteSize = vbByteSize;
+  geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+  geo->IndexBufferByteSize = ibByteSize;
+  geo->DrawArgs["room"] = roomSubmesh;
+  //geo->DrawArgs["walls"] = wallsSubmesh;
+  //geo->DrawArgs["floor"] = floorSubmesh;
+  //geo->DrawArgs["ceiling"] = ceilingSubmesh;
+  geo->DrawArgs["player"] = playerSubmesh;
+  geo->DrawArgs["portalBox"] = portalBoxSubmesh;
+}
 
 
 void PortalsApp::OnResize() {

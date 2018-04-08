@@ -82,10 +82,9 @@ public:
 	void SetTopography(const std::vector<std::vector<XMFLOAT2>> &PhysicalBoundariesVerticesList);
 	void PrintBoundaries();
 	
-	void BuildMeshData(GeometryGenerator::MeshData &RoomMesh, 
-						UINT *WallsIndexCount_ptr, UINT *WallsIBOffset_ptr, UINT *WallsVBOffset_ptr,
-						UINT *FloorIndexCount_ptr, UINT *FloorIBOffset_ptr, UINT *FloorVBOffset_ptr,
-						UINT *CeilingIndexCount_ptr, UINT *CeilingIBOffset_ptr, UINT *CeilingVBOffset_ptr)const;
+  void BuildMeshData(GeometryGenerator::MeshData *RoomMesh,
+                  SubmeshGeometry *WallsSubmesh, SubmeshGeometry *FloorSubmesh,
+                  SubmeshGeometry *CeilingSubmesh)const;
 
 	XMFLOAT3 SpherePathCollision(float SphereRadius, XMFLOAT3 S, XMFLOAT3 Dir, float MoveDist,
 									float *XDist_ptr, float *RedirectRatio_ptr, XMFLOAT3 *RedirectDir_ptr,
