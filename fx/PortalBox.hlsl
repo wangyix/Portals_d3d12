@@ -1,13 +1,13 @@
 #include "Common.hlsl"
 
 #ifndef OUT_COLOR
-#define OUT_COLOR float3(1.0f, 0.0f, 0.0f);
+#define OUT_COLOR float3(1.0f, 0.0f, 0.0f)
 #endif
 
 struct VertexIn {
   float3 PosL    : POSITION;
   float3 NormalL : NORMAL;
-  float2 TexC     : TEXCOORD;
+  float2 TexC    : TEXCOORD;
 };
 
 struct VertexOut {
@@ -26,7 +26,7 @@ VertexOut VS(VertexIn vin) {
   vout.PosH = mul(posW, gViewProj);
 
   // Set depth to max depth (1.0 after perspective divide).
-  vout.Posh.z = vout.PosH.w;
+  vout.PosH.z = vout.PosH.w;
 
   return vout;
 }

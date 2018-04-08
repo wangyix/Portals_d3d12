@@ -62,6 +62,7 @@ private:
   void LoadTexture(const std::string& name, const std::wstring& path);
   void BuildRootSignature();
   void BuildDescriptorHeaps();
+  void BuildShadersAndInputLayout();
 
   void ReadRoomFile(const std::string& path);
   

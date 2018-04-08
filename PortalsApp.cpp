@@ -161,7 +161,7 @@ bool PortalsApp::Initialize() {
 
   BuildRootSignature();
   BuildDescriptorHeaps();
-
+  BuildShadersAndInputLayout();
   
   
   ReadRoomFile("room.txt");
@@ -216,7 +216,8 @@ void PortalsApp::BuildRootSignature() {
       D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK); // borderColor
   CD3DX12_STATIC_SAMPLER_DESC staticSamplers[2] = { anisotropicWrap, anisotropicBlackBorder };
 
-  CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, rootParameters, 2, staticSamplers,
+  CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
+      _countof(rootParameters), rootParameters, _countof(staticSamplers), staticSamplers,
       D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
   
   // Create root signature
@@ -258,7 +259,7 @@ void PortalsApp::BuildDescriptorHeaps() {
   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
   srvDesc.Texture2D.MostDetailedMip = 0;
   srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < _countof(tex2DList); ++i) {
     srvDesc.Format = tex2DList[i]->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = tex2DList[i]->GetDesc().MipLevels;
     md3dDevice->CreateShaderResourceView(tex2DList[i].Get(), &srvDesc, hDescriptor);
@@ -267,6 +268,30 @@ void PortalsApp::BuildDescriptorHeaps() {
   }
 }
 
+void PortalsApp::BuildShadersAndInputLayout() {
+  std::string numLightsStr = std::to_string(_countof(mDirLights));
+  D3D_SHADER_MACRO defines[] = {
+      { "NUM_LIGHTS", numLightsStr.c_str() },
+      { nullptr, nullptr },
+      { nullptr, nullptr },
+      { nullptr, nullptr },
+      { nullptr, nullptr }};
+  mShaders["PortalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
+  mShaders["PortalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
+
+  defines[1] = { "DRAW_PORTAL_A", nullptr };
+  defines[2] = { "DRAW_PORTAL_B", nullptr };
+  mShaders["DefaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
+  mShaders["DefaultPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
+  defines[3] = { "CLIP_PLANE", nullptr };
+  mShaders["DefaultClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
+
+  mInputLayout = {
+    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+  };
+}
 
 
 

@@ -1,5 +1,5 @@
 #ifndef NUM_LIGHTS
-#define NUM_LIGHTS 0
+#define NUM_LIGHTS 3
 #endif
 
 struct MaterialData {
@@ -52,5 +52,5 @@ cbuffer cbPass : register(b1) {
   float gPassPad2;
   float3 gClipPlaneNormal;
   float gClipPlaneOffset;
-  DirectionLight gLights[NUM_LIGHTS];
+  DirectionalLight gLights[NUM_LIGHTS];
 };

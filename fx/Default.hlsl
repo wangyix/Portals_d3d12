@@ -1,3 +1,5 @@
+#include "Common.hlsl"
+
 #ifndef FOG_START
 #define FOG_START 20.0f
 #endif
@@ -13,12 +15,12 @@
 #define PORTAL_TEX_RAD_RATIO 1.0f
 #endif
 
-#define PORTAL_Z_EPSILON 0.001f;
+#define PORTAL_Z_EPSILON 0.001f
 
 float3 ComputeDirectionalLight(
     DirectionalLight L, float3 Diffuse, float4 Specular, float3 normal, float3 toEyeDir) {
-  float diffuseFactor = max(dot(-L.direction, normal), 0.0f);
-  float3 toLightReflectedDir = reflect(L.direction, normal);
+  float diffuseFactor = max(dot(-L.Direction, normal), 0.0f);
+  float3 toLightReflectedDir = reflect(L.Direction, normal);
   float specFactor = pow(max(dot(toLightReflectedDir, toEyeDir), 0.0f), Specular.w);
   return L.Strength * (diffuseFactor * Diffuse + specFactor * Specular.rgb);
 }
@@ -68,10 +70,11 @@ VertexOut VS(VertexIn vin) {
     float4 PosP = mul(float4(vin.PosL, 1.0f), gPortalB);
     vout.PosPB = PosP.xyz / PosP.w;
   }
+#endif
   return vout;
 }
 
-float4 PS(VertexOut pin) : SV_TARGET{
+float4 PS(VertexOut pin) : SV_TARGET {
 #ifdef CLIP_PLANE
   clip(dot(pin.PosW - gClipPlanePosition, gClipPlaneNormal) - gClipPlaneOffset);
 #endif
@@ -80,12 +83,12 @@ float4 PS(VertexOut pin) : SV_TARGET{
   pin.NormalW = normalize(pin.NormalW);
 
   float3 toEyeDirW = gEyePosW - pin.PosW;
-  float distToEye = length(toEyeW);
+  float distToEye = length(toEyeDirW);
   toEyeDirW /= distToEye;
 
   MaterialData matData = gMaterialData[gMaterialIndex];
-  float3 diffuseAlbedo = matData.Diffuse *
-      gTextureMaps[matData.DiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+  float3 diffuseAlbedo = (matData.Diffuse *
+      gTextureMaps[matData.DiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC)).rgb;
 
   float3 result = gAmbientLight * diffuseAlbedo;
 
@@ -118,7 +121,7 @@ float4 PS(VertexOut pin) : SV_TARGET{
     // x:[-PORTAL_TEX_RAD_RATIO, PORTAL_TEX_RAD_RATIO] -> u:[1, 0]
     // y:[-PORTAL_TEX_RAD_RATIO, PORTAL_TEX_RAD_RATIO] -> v:[1, 0]
     float2 texC = 0.5f * (1.0f - pin.PosPB.xy / PORTAL_TEX_RAD_RATIO);
-    portalDiffuse += gPortalADiffuseMap.Sample(gsamAnisotropicBlackBorder, texC);
+    portalDiffuse += gPortalBDiffuseMap.Sample(gsamAnisotropicBlackBorder, texC);
   }
 #endif
   result = lerp(result, portalDiffuse.rgb, portalDiffuse.a);
