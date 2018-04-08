@@ -85,9 +85,6 @@
     <ClInclude Include="framework\MathHelper.h">
       <Filter>Source Files\framework</Filter>
     </ClInclude>
-    <ClInclude Include="util\Light.h">
-      <Filter>Source Files\util</Filter>
-    </ClInclude>
     <ClInclude Include="util\Camera.h">
       <Filter>Source Files\util</Filter>
     </ClInclude>

@@ -4,7 +4,6 @@
 
 #include "Camera.h"
 #include "FrameResource.h"
-#include "Light.h"
 #include "Room.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -13,9 +12,19 @@
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
-
 class PortalsApp : public D3DApp {
 public:
+  struct DirectionalLight {
+    XMFLOAT3 Strength = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f }; // points down
+  };
+
+  struct PhongMaterial {
+    XMFLOAT4 Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
+    XMFLOAT4 Specular = { 0.0f, 0.0f, 0.0f, 0.0f };
+    int DiffuseSrvHeapIndex = -1;
+  };
+
   struct RenderItem {
     XMFLOAT4X4 World = MathHelper::Identity4x4();
     XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
@@ -64,6 +73,7 @@ private:
   void BuildDescriptorHeaps();
   void BuildShadersAndInputLayout();
   void BuildShapeGeometry();
+  void BuildMaterials();
 
   void ReadRoomFile(const std::string& path);
   
@@ -86,12 +96,12 @@ private:
 
   // Room
   Room mRoom;
-  PhongMaterial mWallsMaterial;
+  /*PhongMaterial mWallsMaterial;
   XMMATRIX mWallsTexTransform;
   PhongMaterial mFloorMaterial;
   XMMATRIX mFloorTexTransform;
   PhongMaterial mCeilingMaterial;
-  XMMATRIX mCeilingTexTransform;
+  XMMATRIX mCeilingTexTransform;*/
 
   // Portal
   Portal mOrangePortal;
@@ -103,8 +113,8 @@ private:
 
   // Player
   FirstPersonObject mPlayer;
-  PhongMaterial mPlayerMaterial;
-  XMMATRIX mPlayerTexTransform;
+  //PhongMaterial mPlayerMaterial;
+  //XMMATRIX mPlayerTexTransform;
 
   // D3D12 stuff
   std::vector<FrameResource> mFrameResources;
@@ -118,7 +128,7 @@ private:
   ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
   std::unordered_map<std::string, MeshGeometry> mGeometries;
-  std::unordered_map<std::string, Material> mMaterials;
+  std::unordered_map<std::string, PhongMaterial> mMaterials;
   std::unordered_map<std::string, Texture> mTextures;
   std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
 

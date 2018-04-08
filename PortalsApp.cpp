@@ -96,7 +96,7 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
   mClientWidth = 1280;
   mClientHeight = 720;
 
-  // 3 directional lights
+  /*// 3 directional lights
   mDirLights[0].Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
   mDirLights[0].Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
   mDirLights[0].Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
@@ -136,7 +136,7 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
   mPlayerMaterial.Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
   mPlayerMaterial.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
   mPlayerMaterial.Reflect = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mPlayerTexTransform = XMMatrixIdentity();
+  mPlayerTexTransform = XMMatrixIdentity();*/
 
   mLeftCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
   mRightCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
@@ -157,13 +157,14 @@ bool PortalsApp::Initialize() {
 
   LoadTexture("orange_portal", L"textures/orange_portal2.dds");
   LoadTexture("blue_portal", L"textures/blue_portal2.dds");
-  LoadTexture("wall", L"textures/floor.dds");
+  LoadTexture("wall", L"textures/tile.dds");
   LoadTexture("player", L"textures/stone.dds");
 
   BuildRootSignature();
   BuildDescriptorHeaps();
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
+  BuildMaterials();
   
   ReadRoomFile("room.txt");
 
@@ -388,6 +389,15 @@ void PortalsApp::BuildShapeGeometry() {
   geo->DrawArgs["portalBox"] = portalBoxSubmesh;
 }
 
+void PortalsApp::BuildMaterials() {
+  PhongMaterial* wallMaterial = &mMaterials["wall"];
+  wallMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+  wallMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+
+  PhongMaterial* playerMaterial = &mMaterials["player"];
+  playerMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+  playerMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+}
 
 void PortalsApp::OnResize() {
   D3DApp::OnResize();
