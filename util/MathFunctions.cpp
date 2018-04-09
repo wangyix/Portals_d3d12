@@ -141,14 +141,3 @@ XMFLOAT3 XMFloat3Normalize(const XMFLOAT3 &v)
 {
 	return v / XMFloat3Length(v);
 }
-
-XMMATRIX MathFunctions::InverseTranspose(const XMMATRIX &M)
-{
-	XMVECTOR Row4 = M.r[3];
-
-	XMMATRIX Mrot = XMMATRIX(M.r[0], M.r[1], M.r[2], 
-		XMLoadFloat4(&XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f)));
-
-	XMVECTOR Det;
-	return XMMatrixTranspose(XMMatrixInverse(&Det, M));
-}

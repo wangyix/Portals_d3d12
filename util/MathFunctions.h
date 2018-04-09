@@ -36,9 +36,4 @@ float XMFloat3Length(const XMFLOAT3 &v);
 float XMFloat3LengthSq(const XMFLOAT3 &v);
 XMFLOAT3 XMFloat3Normalize(const XMFLOAT3 &v);
 
-class MathFunctions
-{
-public:
-	static XMMATRIX InverseTranspose(const XMMATRIX &M);
-};
 #endif

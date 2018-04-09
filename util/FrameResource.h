@@ -70,10 +70,11 @@ public:
 
   // We cannot update a cbuffer until the GPU is done processing the commands
   // that reference it.  So each frame needs their own cbuffers.
- // std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
-  std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-  std::unique_ptr<UploadBuffer<MaterialData>> MaterialCB = nullptr;
   std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+  std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
+  std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
+  
+  std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
 
   // Fence value to mark commands up to this fence point.  This lets us
   // check if these frame resources are still in use by the GPU.

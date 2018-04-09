@@ -72,7 +72,9 @@ private:
 
   void ReadRoomFile(const std::string& path);
   
-  void UpdateCameraAndPortals(float dt, bool modifyPortal);
+  void OnKeyboardInput(float dt, bool modifyPortal);
+  void UpdateObjectCBs();
+  void UpdateMaterialBuffer();
 
   DirectionalLight mDirLights[NUM_LIGHTS];
 

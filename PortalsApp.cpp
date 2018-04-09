@@ -122,7 +122,7 @@ bool PortalsApp::Initialize() {
 
   LoadTexture("orange_portal", L"textures/orange_portal2.dds");
   LoadTexture("blue_portal", L"textures/blue_portal2.dds");
-  LoadTexture("wall", L"textures/tile.dds");
+  LoadTexture("room", L"textures/tile.dds");
   LoadTexture("player", L"textures/stone.dds");
 
   BuildRootSignature();
@@ -215,16 +215,17 @@ void PortalsApp::BuildDescriptorHeaps() {
   srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
+  // Fill the heap with descriptors.
+  ComPtr<ID3D12Resource> tex2DList[4] = {
+    // Put the descriptors for the textures used for gTextureMaps[2] first in the heap so that
+    // PhongMaterial::DiffuseSrvHeapIndex matches MaterialData::DiffuseMapIndex.
+    mTextures["room"].Resource,
+    mTextures["player"].Resource,
+    mTextures["orange_portal"].Resource,
+    mTextures["blue_portal"].Resource
+  };
   CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(
       mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
-  ComPtr<ID3D12Resource> tex2DList[4] = {
-    mTextures["orange_portal"].Resource,
-    mTextures["blue_portal"].Resource,
-    mTextures["wall"].Resource,
-    mTextures["player"].Resource
-  };
-
   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
   srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
   srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -363,13 +364,17 @@ void PortalsApp::BuildShapeGeometry() {
 }
 
 void PortalsApp::BuildMaterials() {
-  PhongMaterial* wallMaterial = &mMaterials["room"];
-  wallMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  wallMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+  PhongMaterial* roomMaterial = &mMaterials["room"];
+  roomMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+  roomMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+  roomMaterial->MatCBIndex = 0;
+  roomMaterial->DiffuseSrvHeapIndex = 0;
 
   PhongMaterial* playerMaterial = &mMaterials["player"];
   playerMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
   playerMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+  playerMaterial->MatCBIndex = 1;
+  playerMaterial->DiffuseSrvHeapIndex = 1;
 }
 
 void PortalsApp::BuildRenderItems() {
@@ -492,6 +497,9 @@ void PortalsApp::BuildPSOs() {
 
 void PortalsApp::OnResize() {
   D3DApp::OnResize();
+
+  mLeftCamera.SetAspect(AspectRatio());
+  mRightCamera.SetAspect(AspectRatio());
 }
 
 void PortalsApp::Update(const GameTimer& gt) {
@@ -502,7 +510,8 @@ void PortalsApp::Update(const GameTimer& gt) {
     !mBluePortal.DiscIntersectSphere(
         mLeftCamera.GetPosition(), mLeftCamera.GetBoundingSphereRadius() + 0.001f);
 
-  UpdateCameraAndPortals(gt.DeltaTime(), modifyPortal);
+  OnKeyboardInput(gt.DeltaTime(), modifyPortal);
+  UpdateObjectCBs();
 }
 
 void PortalsApp::Draw(const GameTimer& gt) {}
@@ -619,7 +628,7 @@ void PortalsApp::ReadRoomFile(const std::string& path) {
   ifs.close();
 }
 
-void PortalsApp::UpdateCameraAndPortals(float dt, bool modifyPortal) {
+void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
   // Select which portal to control
   if (GetAsyncKeyState('O') & 0x8000) {
     mCurrentPortal = &mOrangePortal;
@@ -707,6 +716,45 @@ void PortalsApp::UpdateCameraAndPortals(float dt, bool modifyPortal) {
       float NewRadius = mCurrentPortal->GetPhysicalRadius() +
           (PortalSizeIncreaseUnits * PORTAL_SIZE_CHANGE_SPEED * dt);
       mCurrentPortal->SetIntendedPhysicalRadius(NewRadius);
+    }
+  }
+}
+
+void PortalsApp::UpdateObjectCBs() {
+  UploadBuffer<ObjectConstants>* currObjectCB = mCurrentFrameResource->ObjectCB.get();
+  for (RenderItem* item : { &mRoomRenderItem, &mPlayerRenderItem, &mPortalBoxRenderItem }) {
+    // Only update the buffer data if the constants have changed. This needs to be tracked per
+    // frame resource.
+    if (item->NumFramesDirty > 0) {
+      ObjectConstants objConstants;
+      XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(item->World));
+      XMStoreFloat4x4(&objConstants.WorldInvTranspose, XMMatrixTranspose(
+          MathHelper::InverseTranspose(item->World)));
+      XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(item->TexTransform));
+      objConstants.MaterialIndex = item->Mat->MatCBIndex;
+
+      currObjectCB->CopyData(item->ObjCBIndex, objConstants);
+
+      item->NumFramesDirty--;
+    }
+  }
+}
+
+void PortalsApp::UpdateMaterialBuffer() {
+  UploadBuffer<MaterialData>* currMaterialBuffer = mCurrentFrameResource->MaterialBuffer.get();
+  for (std::pair<const std::string, PhongMaterial>& e : mMaterials) {
+    // Only update the cbuffer data if the constants have changed.  If the cbuffer
+    // data changes, it needs to be updated for each FrameResource.
+    PhongMaterial* mat = &e.second;
+    if (mat->NumFramesDirty > 0) {
+      MaterialData matData;
+      matData.Diffuse = mat->Diffuse;
+      matData.Specular = mat->Specular;
+      matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+
+      currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+
+      mat->NumFramesDirty--;
     }
   }
 }
