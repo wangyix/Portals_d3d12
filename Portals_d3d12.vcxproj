@@ -47,6 +47,7 @@
     <ClInclude Include="util\FirstPersonObject.h" />
     <ClInclude Include="util\FrameResource.h" />
     <ClInclude Include="util\GeometryGenerator.h" />
+    <ClInclude Include="util\Light.h" />
     <ClInclude Include="util\Macros.h" />
     <ClInclude Include="util\MathFunctions.h" />
     <ClInclude Include="util\Portal.h" />

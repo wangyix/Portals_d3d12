@@ -96,47 +96,12 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
   mClientWidth = 1280;
   mClientHeight = 720;
 
-  /*// 3 directional lights
-  mDirLights[0].Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-  mDirLights[0].Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-  mDirLights[0].Specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+  mDirLights[0].Strength = XMFLOAT3(1.0f, 1.0f, 1.0f);
   mDirLights[0].Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
-
-  mDirLights[1].Ambient = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mDirLights[1].Diffuse = XMFLOAT4(0.20f, 0.20f, 0.20f, 1.0f);
-  mDirLights[1].Specular = XMFLOAT4(0.25f, 0.25f, 0.25f, 1.0f);
+  mDirLights[1].Strength = XMFLOAT3(0.5f, 0.5f, 0.5f);
   mDirLights[1].Direction = XMFLOAT3(-0.57735f, -0.57735f, 0.57735f);
-
-  mDirLights[2].Ambient = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mDirLights[2].Diffuse = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-  mDirLights[2].Specular = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+  mDirLights[2].Strength = XMFLOAT3(0.2f, 0.2f, 0.2f);
   mDirLights[2].Direction = XMFLOAT3(0.0f, -0.707f, -0.707f);
-
-  // room values
-  mWallsMaterial.Ambient = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mWallsMaterial.Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mWallsMaterial.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-  mWallsMaterial.Reflect = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mWallsTexTransform = XMMatrixScaling(0.25f, 0.25f, 1.0f);
-
-  mFloorMaterial.Ambient = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mFloorMaterial.Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mFloorMaterial.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-  mFloorMaterial.Reflect = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mFloorTexTransform = XMMatrixScaling(0.25f, 0.25f, 1.0f);
-
-  mCeilingMaterial.Ambient = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mCeilingMaterial.Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mCeilingMaterial.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-  mCeilingMaterial.Reflect = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mCeilingTexTransform = XMMatrixScaling(0.25f, 0.25f, 1.0f);
-
-  // player values
-  mPlayerMaterial.Ambient = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mPlayerMaterial.Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  mPlayerMaterial.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
-  mPlayerMaterial.Reflect = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-  mPlayerTexTransform = XMMatrixIdentity();*/
 
   mLeftCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
   mRightCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
@@ -165,6 +130,8 @@ bool PortalsApp::Initialize() {
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
   BuildMaterials();
+  BuildRenderItems();
+  BuildFrameResources();
   BuildPSOs();
   
   ReadRoomFile("room.txt");
@@ -189,15 +156,16 @@ void PortalsApp::BuildRootSignature() {
   CD3DX12_DESCRIPTOR_RANGE texTable1;
   texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2, 0);
 
-  CD3DX12_ROOT_PARAMETER rootParameters[5];
+  CD3DX12_ROOT_PARAMETER rootParameters[6];
   // Order from most frequent to least frequent.
   rootParameters[0].InitAsConstantBufferView(0);      // cbPerObject
   rootParameters[1].InitAsConstantBufferView(1);      // cbPass
-  rootParameters[2].InitAsShaderResourceView(0, 1);   // gMaterialData
+  rootParameters[2].InitAsConstantBufferView(2);      // cbFrame
+  rootParameters[3].InitAsShaderResourceView(0, 1);   // gMaterialData
   // gPortalADiffuseMap, gPortalBDiffuseMap
-  rootParameters[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[4].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
   // gTextureMaps
-  rootParameters[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[5].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
   const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
       0,                                  // shaderRegister
@@ -272,7 +240,7 @@ void PortalsApp::BuildDescriptorHeaps() {
 }
 
 void PortalsApp::BuildShadersAndInputLayout() {
-  std::string numLightsStr = std::to_string(_countof(mDirLights));
+  std::string numLightsStr = std::to_string(NUM_LIGHTS);
   D3D_SHADER_MACRO defines[] = {
       { "NUM_LIGHTS", numLightsStr.c_str() },
       { nullptr, nullptr },
@@ -395,13 +363,56 @@ void PortalsApp::BuildShapeGeometry() {
 }
 
 void PortalsApp::BuildMaterials() {
-  PhongMaterial* wallMaterial = &mMaterials["wall"];
+  PhongMaterial* wallMaterial = &mMaterials["room"];
   wallMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
   wallMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
 
   PhongMaterial* playerMaterial = &mMaterials["player"];
   playerMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
   playerMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+}
+
+void PortalsApp::BuildRenderItems() {
+  mRoomRenderItem.World = XMMatrixIdentity();
+  mRoomRenderItem.TexTransform = XMMatrixScaling(0.25f, 0.25f, 1.0f);
+  mRoomRenderItem.ObjCBIndex = 0;
+  mRoomRenderItem.Mat = &mMaterials["room"];
+  mRoomRenderItem.Geo = &mGeometries["shapeGeo"];
+  mRoomRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  const SubmeshGeometry& roomSubMesh = mRoomRenderItem.Geo->DrawArgs["room"];
+  mRoomRenderItem.IndexCount = roomSubMesh.IndexCount;
+  mRoomRenderItem.StartIndexLocation = roomSubMesh.StartIndexLocation;
+  mRoomRenderItem.BaseVertexLocation = roomSubMesh.BaseVertexLocation;
+
+  mPlayerRenderItem.World = XMMatrixIdentity();
+  mPlayerRenderItem.TexTransform = XMMatrixIdentity();
+  mPlayerRenderItem.ObjCBIndex = 1;
+  mPlayerRenderItem.Mat = &mMaterials["player"];
+  mPlayerRenderItem.Geo = &mGeometries["shapeGeo"];
+  mPlayerRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  const SubmeshGeometry& playerSubmesh = mPlayerRenderItem.Geo->DrawArgs["player"];
+  mPlayerRenderItem.IndexCount = playerSubmesh.IndexCount;
+  mPlayerRenderItem.StartIndexLocation = playerSubmesh.StartIndexLocation;
+  mPlayerRenderItem.BaseVertexLocation = playerSubmesh.BaseVertexLocation;
+
+  mPortalBoxRenderItem.World = XMMatrixIdentity();
+  mPortalBoxRenderItem.TexTransform = XMMatrixIdentity();   // unused
+  mPortalBoxRenderItem.ObjCBIndex = 2;
+  mPlayerRenderItem.Mat = nullptr;                          // unused
+  mPortalBoxRenderItem.Geo = &mGeometries["shapeGeo"];
+  mPortalBoxRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  const SubmeshGeometry& portalBoxSubmesh = mPortalBoxRenderItem.Geo->DrawArgs["portalBox"];
+  mPortalBoxRenderItem.IndexCount = portalBoxSubmesh.IndexCount;
+  mPortalBoxRenderItem.StartIndexLocation = portalBoxSubmesh.StartIndexLocation;
+  mPortalBoxRenderItem.BaseVertexLocation = portalBoxSubmesh.BaseVertexLocation;
+}
+
+void PortalsApp::BuildFrameResources() {
+  for (int i = 0; i < gNumFrameResources; ++i) {
+    mFrameResources.push_back(std::make_unique<FrameResource>(
+        md3dDevice.Get(), /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
+        /*objectCount=*/2, /*materialCount=*/mMaterials.size()));
+  }
 }
 
 void PortalsApp::BuildPSOs() {

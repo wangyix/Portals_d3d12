@@ -6,6 +6,9 @@ struct MaterialData {
   float4 Diffuse;
   float4 Specular;
   uint DiffuseMapIndex;
+  uint MatPad0;
+  uint MatPad1;
+  uint MatPad2;
 };
 
 struct DirectionalLight {
@@ -42,15 +45,18 @@ cbuffer cbPerObject : register(b0) {
 
 cbuffer cbPass : register(b1) {
   float4x4 gViewProj;
+};
+
+cbuffer cbFrame : register(b2) {
   float4x4 gPortalA;
   float4x4 gPortalB;
   float3 gEyePosW;
-  float gViewScale;
-  float3 gAmbientLight;
-  float gPassPad1;
+  float gViewScale; // ?
   float3 gClipPlanePosition;
-  float gPassPad2;
+  float gFramePad1;
   float3 gClipPlaneNormal;
   float gClipPlaneOffset;
+  float3 gAmbientLight;
+  float gFramePad0;
   DirectionalLight gLights[NUM_LIGHTS];
 };

@@ -4,6 +4,7 @@
 
 #include "Camera.h"
 #include "FrameResource.h"
+#include "Light.h"
 #include "Room.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -12,22 +13,13 @@
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
+const int gNumFrameResources = 3;
+
 class PortalsApp : public D3DApp {
 public:
-  struct DirectionalLight {
-    XMFLOAT3 Strength = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f }; // points down
-  };
-
-  struct PhongMaterial {
-    XMFLOAT4 Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
-    XMFLOAT4 Specular = { 0.0f, 0.0f, 0.0f, 0.0f };
-    int DiffuseSrvHeapIndex = -1;
-  };
-
   struct RenderItem {
-    XMFLOAT4X4 World = MathHelper::Identity4x4();
-    XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+    XMMATRIX World = XMMatrixIdentity();
+    XMMATRIX TexTransform = XMMatrixIdentity();
 
     // Dirty flag indicating the object data has changed and we need to update the constant buffer.
     // Because we have an object cbuffer for each FrameResource, we have to apply the
@@ -38,7 +30,7 @@ public:
     // Index into GPU constant buffer corresponding to the ObjectCB for this render item.
     UINT ObjCBIndex = -1;
 
-    Material* Mat = nullptr;
+    PhongMaterial* Mat = nullptr;
     MeshGeometry* Geo = nullptr;
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -73,14 +65,16 @@ private:
   void BuildDescriptorHeaps();
   void BuildShadersAndInputLayout();
   void BuildShapeGeometry();
-  void BuildPSOs();
   void BuildMaterials();
+  void BuildRenderItems();
+  void BuildFrameResources();
+  void BuildPSOs();
 
   void ReadRoomFile(const std::string& path);
   
   void UpdateCameraAndPortals(float dt, bool modifyPortal);
 
-  DirectionalLight mDirLights[3];
+  DirectionalLight mDirLights[NUM_LIGHTS];
 
   // Mouse
   POINT mLastMousePos;
@@ -118,7 +112,7 @@ private:
   //XMMATRIX mPlayerTexTransform;
 
   // D3D12 stuff
-  std::vector<FrameResource> mFrameResources;
+  std::vector<std::unique_ptr<FrameResource>> mFrameResources;
   FrameResource* mCurrentFrameResource;
   int mCurrentFrameResourceIndex;
 
@@ -138,7 +132,9 @@ private:
 
   ComPtr<ID3D12PipelineState> mPSO = nullptr;
 
-  std::vector<RenderItem> mRenderItems;
+  RenderItem mRoomRenderItem;
+  RenderItem mPlayerRenderItem;
+  RenderItem mPortalBoxRenderItem;
 
   PassConstants mMainPassCB;
 };

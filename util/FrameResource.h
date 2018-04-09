@@ -1,39 +1,49 @@
 #pragma once
 
 #include "d3dUtil.h"
+#include "Light.h"
 #include "MathHelper.h"
 #include "UploadBuffer.h"
 
 struct ObjectConstants
 {
   DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+  DirectX::XMFLOAT4X4 WorldInvTranspose = MathHelper::Identity4x4();
   DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+  UINT     MaterialIndex;
+  UINT     ObjPad0;
+  UINT     ObjPad1;
+  UINT     ObjPad2;
 };
 
 struct PassConstants
 {
-  DirectX::XMFLOAT4X4 View = MathHelper::Identity4x4();
-  DirectX::XMFLOAT4X4 InvView = MathHelper::Identity4x4();
-  DirectX::XMFLOAT4X4 Proj = MathHelper::Identity4x4();
-  DirectX::XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
   DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
-  DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
+};
+
+struct FrameConstants
+{
+  DirectX::XMFLOAT4X4 PortalA = MathHelper::Identity4x4();
+  DirectX::XMFLOAT4X4 PortalB = MathHelper::Identity4x4();
   DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
-  float cbPerObjectPad1 = 0.0f;
-  DirectX::XMFLOAT2 RenderTargetSize = { 0.0f, 0.0f };
-  DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
-  float NearZ = 0.0f;
-  float FarZ = 0.0f;
-  float TotalTime = 0.0f;
-  float DeltaTime = 0.0f;
+  float ViewScale = 1.0f;
+  DirectX::XMFLOAT3 AmbientLight = { 0.0f, 0.0f, 0.0f };
+  float PassPad0;
+  DirectX::XMFLOAT3 ClipPlanePosition = { 0.0f, 0.0f, 0.0f };
+  float PassPad1;
+  DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
+  float ClipPlaneOffset = 0.0f;
+  DirectionalLight Lights[NUM_LIGHTS];
+};
 
-  DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
-
-  // Indices [0, NUM_DIR_LIGHTS) are directional lights;
-  // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
-  // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
-  // are spot lights for a maximum of MaxLights per object.
-  Light Lights[MaxLights];
+struct MaterialData
+{
+  DirectX::XMFLOAT4 Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
+  DirectX::XMFLOAT4 Specular = { 0.0f, 0.0f, 0.0f, 0.0f };
+  UINT DiffuseMapIndex = 0;
+  UINT MatPad0;;
+  UINT MatPad1;
+  UINT MatPad2;
 };
 
 struct Vertex
@@ -62,7 +72,7 @@ public:
   // that reference it.  So each frame needs their own cbuffers.
  // std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
   std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-  std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
+  std::unique_ptr<UploadBuffer<MaterialData>> MaterialCB = nullptr;
   std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
 
   // Fence value to mark commands up to this fence point.  This lets us
