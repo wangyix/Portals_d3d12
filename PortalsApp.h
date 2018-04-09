@@ -73,6 +73,7 @@ private:
   void BuildDescriptorHeaps();
   void BuildShadersAndInputLayout();
   void BuildShapeGeometry();
+  void BuildPSOs();
   void BuildMaterials();
 
   void ReadRoomFile(const std::string& path);
@@ -131,6 +132,7 @@ private:
   std::unordered_map<std::string, PhongMaterial> mMaterials;
   std::unordered_map<std::string, Texture> mTextures;
   std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+  std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
   std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 

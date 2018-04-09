@@ -165,6 +165,7 @@ bool PortalsApp::Initialize() {
   BuildShadersAndInputLayout();
   BuildShapeGeometry();
   BuildMaterials();
+  BuildPSOs();
   
   ReadRoomFile("room.txt");
 
@@ -280,6 +281,10 @@ void PortalsApp::BuildShadersAndInputLayout() {
       { nullptr, nullptr }};
   mShaders["portalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
   mShaders["portalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
+  defines[1] = { "CLIP_PLANE", nullptr };
+  mShaders["portalBoxClipPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
+  defines[1] = { "CLEAR_DEPTH", nullptr };
+  mShaders["portalBoxClearDepthPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
 
   defines[1] = { "DRAW_PORTAL_A", nullptr };
   defines[2] = { "DRAW_PORTAL_B", nullptr };
@@ -397,6 +402,81 @@ void PortalsApp::BuildMaterials() {
   PhongMaterial* playerMaterial = &mMaterials["player"];
   playerMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
   playerMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+}
+
+void PortalsApp::BuildPSOs() {
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
+  ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+
+  // Common settings used by all PSOs.
+  psoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+  psoDesc.pRootSignature = mRootSignature.Get();
+  psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+  psoDesc.SampleMask = UINT_MAX;
+  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.NumRenderTargets = 1;
+  psoDesc.RTVFormats[0] = mBackBufferFormat;
+  psoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+  psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+  psoDesc.DSVFormat = mDepthStencilFormat;
+  
+
+  // default PSO, for rendering room and player
+  
+  // default PSO with no special settings.
+  ID3DBlob* shader = mShaders["defaultVS"].Get();
+  psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  shader = mShaders["defaultPS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["default"])));
+
+  // default PSO with pixels clipped against a plane and stencil test pass when equal to ref value.
+  shader = mShaders["defaultClipPS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["defaultClipStencilEqual"])));
+
+
+  // portalBox PSO, for rendering a box behind a portal hole to stencil.
+  
+  // portalbox PSO that will write ref value to stencil.
+  shader = mShaders["portalBoxVS"].Get();
+  psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  shader = mShaders["portalBoxPS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilSet"])));
+
+  // portalbox PSO with stencil test pass when equal to ref value, disable depth test, and write
+  // max depth value to depth buffer.
+  shader = mShaders["portalBoxClearDepthPS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualClearDepth"])));
+
+  // portalbox PSO with pixels clipped against a plane, stencil test pass when equal to ref value,
+  // and increments stencil values.
+  shader = mShaders["portalBoxClipPS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualIncr"])));
 }
 
 void PortalsApp::OnResize() {

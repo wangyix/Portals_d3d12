@@ -25,9 +25,11 @@ VertexOut VS(VertexIn vin) {
   // Transform to homogeneous clip space.
   vout.PosH = mul(posW, gViewProj);
 
+#ifdef CLEAR_DEPTH
   // Set depth to max depth (1.0 after perspective divide).
   vout.PosH.z = vout.PosH.w;
-
+#endif
+  
   return vout;
 }
 
