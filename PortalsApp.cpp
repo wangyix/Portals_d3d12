@@ -96,6 +96,7 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
   mClientWidth = 1280;
   mClientHeight = 720;
 
+  mAmbientLight = XMFLOAT3(0.2f, 0.2f, 0.2f);
   mDirLights[0].Strength = XMFLOAT3(1.0f, 1.0f, 1.0f);
   mDirLights[0].Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
   mDirLights[1].Strength = XMFLOAT3(0.5f, 0.5f, 0.5f);
@@ -375,6 +376,8 @@ void PortalsApp::BuildMaterials() {
   playerMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
   playerMaterial->MatCBIndex = 1;
   playerMaterial->DiffuseSrvHeapIndex = 1;
+
+  PhongMaterial* unusedMaterial = &mMaterials["unused"];
 }
 
 void PortalsApp::BuildRenderItems() {
@@ -403,7 +406,7 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxRenderItem.World = XMMatrixIdentity();
   mPortalBoxRenderItem.TexTransform = XMMatrixIdentity();   // unused
   mPortalBoxRenderItem.ObjCBIndex = 2;
-  mPlayerRenderItem.Mat = nullptr;                          // unused
+  mPortalBoxRenderItem.Mat = &mMaterials["unused"];         // unused
   mPortalBoxRenderItem.Geo = &mGeometries["shapeGeo"];
   mPortalBoxRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
   const SubmeshGeometry& portalBoxSubmesh = mPortalBoxRenderItem.Geo->DrawArgs["portalBox"];
@@ -503,6 +506,20 @@ void PortalsApp::OnResize() {
 }
 
 void PortalsApp::Update(const GameTimer& gt) {
+  // Cycle through the circular frame resource array.
+  mCurrentFrameResourceIndex = (mCurrentFrameResourceIndex + 1) % gNumFrameResources;
+  mCurrentFrameResource = mFrameResources[mCurrentFrameResourceIndex].get();
+
+  // Has the GPU finished processing the commands of the current frame resource?
+  // If not, wait until the GPU has completed commands up to this fence point.
+  if (mCurrentFrameResource->Fence != 0 &&
+      mFence->GetCompletedValue() < mCurrentFrameResource->Fence) {
+    HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+    ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFrameResource->Fence, eventHandle));
+    WaitForSingleObject(eventHandle, INFINITE);
+    CloseHandle(eventHandle);
+  }
+
   // Portals cannot be changed if either portal intersects the player or the spectator camera
   bool modifyPortal = (!mPlayerIntersectOrangePortal && !mPlayerIntersectBluePortal) &&
     !mOrangePortal.DiscIntersectSphere(
@@ -512,6 +529,10 @@ void PortalsApp::Update(const GameTimer& gt) {
 
   OnKeyboardInput(gt.DeltaTime(), modifyPortal);
   UpdateObjectCBs();
+  UpdateMaterialBuffer();
+
+  UpdateFrameCB(&mOrangePortal);
+  //UpdatePassCB(0, XMMatrixIdentity(), XMFLOAT3(), 1.0f); // test!!
 }
 
 void PortalsApp::Draw(const GameTimer& gt) {}
@@ -721,7 +742,7 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
 }
 
 void PortalsApp::UpdateObjectCBs() {
-  UploadBuffer<ObjectConstants>* currObjectCB = mCurrentFrameResource->ObjectCB.get();
+  UploadBuffer<ObjectConstants>* currentObjectCB = mCurrentFrameResource->ObjectCB.get();
   for (RenderItem* item : { &mRoomRenderItem, &mPlayerRenderItem, &mPortalBoxRenderItem }) {
     // Only update the buffer data if the constants have changed. This needs to be tracked per
     // frame resource.
@@ -733,7 +754,7 @@ void PortalsApp::UpdateObjectCBs() {
       XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(item->TexTransform));
       objConstants.MaterialIndex = item->Mat->MatCBIndex;
 
-      currObjectCB->CopyData(item->ObjCBIndex, objConstants);
+      currentObjectCB->CopyData(item->ObjCBIndex, objConstants);
 
       item->NumFramesDirty--;
     }
@@ -741,7 +762,7 @@ void PortalsApp::UpdateObjectCBs() {
 }
 
 void PortalsApp::UpdateMaterialBuffer() {
-  UploadBuffer<MaterialData>* currMaterialBuffer = mCurrentFrameResource->MaterialBuffer.get();
+  UploadBuffer<MaterialData>* currentMaterialBuffer = mCurrentFrameResource->MaterialBuffer.get();
   for (std::pair<const std::string, PhongMaterial>& e : mMaterials) {
     // Only update the cbuffer data if the constants have changed.  If the cbuffer
     // data changes, it needs to be updated for each FrameResource.
@@ -752,11 +773,36 @@ void PortalsApp::UpdateMaterialBuffer() {
       matData.Specular = mat->Specular;
       matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
 
-      currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+      currentMaterialBuffer->CopyData(mat->MatCBIndex, matData);
 
       mat->NumFramesDirty--;
     }
   }
+}
+
+void PortalsApp::UpdateFrameCB(const Portal* clipPortal) {
+  FrameConstants frameCB;
+  XMStoreFloat4x4(&frameCB.PortalA, XMMatrixTranspose(mOrangePortal.GetScaledPortalMatrix()));
+  XMStoreFloat4x4(&frameCB.PortalB, XMMatrixTranspose(mBluePortal.GetScaledPortalMatrix()));
+  frameCB.AmbientLight = mAmbientLight;
+  frameCB.ClipPlanePosition = clipPortal->GetPosition();
+  frameCB.ClipPlaneNormal = clipPortal->GetNormal();
+  frameCB.ClipPlaneOffset = 0.0f;
+  memcpy(frameCB.Lights, mDirLights, NUM_LIGHTS * sizeof(DirectionalLight));
+
+  UploadBuffer<FrameConstants>* currentFrameCB = mCurrentFrameResource->FrameCB.get();
+  currentFrameCB->CopyData(0, frameCB);
+}
+
+void PortalsApp::UpdatePassCB(
+    int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float viewScale) {
+  PassConstants passCB;
+  XMStoreFloat4x4(&passCB.ViewProj, XMMatrixTranspose(viewProj));
+  passCB.EyePosW = eyePosW;
+  passCB.ViewScale = viewScale;
+
+  UploadBuffer<PassConstants>* currentPassCB = mCurrentFrameResource->PassCB.get();
+  currentPassCB->CopyData(index, passCB);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,

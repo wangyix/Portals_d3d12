@@ -75,7 +75,10 @@ private:
   void OnKeyboardInput(float dt, bool modifyPortal);
   void UpdateObjectCBs();
   void UpdateMaterialBuffer();
+  void UpdateFrameCB(const Portal* clipPortal);
+  void UpdatePassCB(int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float viewScale);
 
+  XMFLOAT3 mAmbientLight;
   DirectionalLight mDirLights[NUM_LIGHTS];
 
   // Mouse
@@ -93,25 +96,17 @@ private:
 
   // Room
   Room mRoom;
-  /*PhongMaterial mWallsMaterial;
-  XMMATRIX mWallsTexTransform;
-  PhongMaterial mFloorMaterial;
-  XMMATRIX mFloorTexTransform;
-  PhongMaterial mCeilingMaterial;
-  XMMATRIX mCeilingTexTransform;*/
 
   // Portal
   Portal mOrangePortal;
   Portal mBluePortal;
-  Portal* mCurrentPortal;
+  Portal* mCurrentPortal;   // Portal currently selected by user
   Portal* mOtherPortal;
   bool mPlayerIntersectOrangePortal;
   bool mPlayerIntersectBluePortal;
 
   // Player
   FirstPersonObject mPlayer;
-  //PhongMaterial mPlayerMaterial;
-  //XMMATRIX mPlayerTexTransform;
 
   // D3D12 stuff
   std::vector<std::unique_ptr<FrameResource>> mFrameResources;

@@ -45,13 +45,13 @@ cbuffer cbPerObject : register(b0) {
 
 cbuffer cbPass : register(b1) {
   float4x4 gViewProj;
+  float3 gEyePosW;
+  float gViewScale;
 };
 
 cbuffer cbFrame : register(b2) {
   float4x4 gPortalA;
   float4x4 gPortalB;
-  float3 gEyePosW;
-  float gViewScale; // ?
   float3 gClipPlanePosition;
   float gFramePad1;
   float3 gClipPlaneNormal;
