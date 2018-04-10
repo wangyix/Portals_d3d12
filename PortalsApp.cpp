@@ -121,6 +121,13 @@ bool PortalsApp::Initialize() {
   // Reset the command list to prep for initialization commands.
   ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+  // Get the increment size of a descriptor in this heap type.  This is hardware specific, 
+  // so we have to query this information.
+  mCbvSrvDescriptorSize =
+      md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  
+  ReadRoomFile("room.txt");
+
   LoadTexture("orange_portal", L"textures/orange_portal2.dds");
   LoadTexture("blue_portal", L"textures/blue_portal2.dds");
   LoadTexture("room", L"textures/tile.dds");
@@ -135,7 +142,13 @@ bool PortalsApp::Initialize() {
   BuildFrameResources();
   BuildPSOs();
   
-  ReadRoomFile("room.txt");
+  // Execute the initialization commands.
+  ThrowIfFailed(mCommandList->Close());
+  ID3D12CommandList* cmdList = mCommandList.Get();
+  mCommandQueue->ExecuteCommandLists(1, &cmdList);
+
+  // Wait until initialization is complete.
+  FlushCommandQueue();
 
   return true;
 }
@@ -531,11 +544,100 @@ void PortalsApp::Update(const GameTimer& gt) {
   UpdateObjectCBs();
   UpdateMaterialBuffer();
 
-  UpdateFrameCB(&mOrangePortal);
-  //UpdatePassCB(0, XMMatrixIdentity(), XMFLOAT3(), 1.0f); // test!!
+  UpdateFrameCB(&mOrangePortal);  // test!!
 }
 
-void PortalsApp::Draw(const GameTimer& gt) {}
+void PortalsApp::Draw(const GameTimer& gt) {
+  ComPtr<ID3D12CommandAllocator> cmdListAlloc = mCurrentFrameResource->CmdListAlloc;
+
+  // Reuse the memory associated with command recording.
+  // We can only reset when the associated command lists have finished execution on the GPU.
+  ThrowIfFailed(cmdListAlloc->Reset());
+
+  // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
+  // Reusing the command list reuses memory.
+  ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["default"].Get()));
+
+  // Indicate a state transition on the resource usage.
+  mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+    D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+  mCommandList->RSSetViewports(1, &mScreenViewport);
+  mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+  // Clear the back and depth buffer.
+  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::Black, 0, nullptr);
+  mCommandList->ClearDepthStencilView(
+    DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+  // Specify the buffers we are going to render to.
+  mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+  ID3D12DescriptorHeap* descriptorHeap = mSrvDescriptorHeap.Get();
+  mCommandList->SetDescriptorHeaps(1, &descriptorHeap);
+
+  mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+  // Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
+  // set as a root descriptor.
+  ID3D12Resource* matBuffer = mCurrentFrameResource->MaterialBuffer->Resource();
+  mCommandList->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());
+
+  // Bind room and player textures to gTextureMaps[2].
+  CD3DX12_GPU_DESCRIPTOR_HANDLE baseSrvDescriptor(
+      mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+  mCommandList->SetGraphicsRootDescriptorTable(5, baseSrvDescriptor);
+
+  // Bind orange_portal and blue_portal textures to gPortalADiffuseMap and gPortalBDiffuseMap.
+  baseSrvDescriptor.Offset(2, mCbvSrvUavDescriptorSize);
+  mCommandList->SetGraphicsRootDescriptorTable(4, baseSrvDescriptor);
+
+  // Bind per-frame constant buffer.
+  mCommandList->SetGraphicsRootConstantBufferView(
+      2, mCurrentFrameResource->FrameCB->Resource()->GetGPUVirtualAddress()); 
+
+
+
+
+
+  // Update per-pass constant buffer.
+  XMMATRIX viewProj = mLeftCamera.GetViewMatrix() * mLeftCamera.GetProjMatrix();
+  XMFLOAT3 eyePosW = mLeftCamera.GetPosition();
+  float viewScale = mLeftCamera.GetViewScale();
+  UpdatePassCB(0, viewProj, eyePosW, viewScale);
+  // Bind per-pass constant buffer.
+  UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+  mCommandList->SetGraphicsRootConstantBufferView(
+    1, mCurrentFrameResource->FrameCB->Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
+
+  // Draw room
+  DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
+
+
+
+  // Indicate a state transition on the resource usage.
+  mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+      D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+  // Done recording commands.
+  ThrowIfFailed(mCommandList->Close());
+
+  // Add the command list to the queue for execution.
+  ID3D12CommandList* cmdList = mCommandList.Get();
+  mCommandQueue->ExecuteCommandLists(1, &cmdList);
+
+  // Swap the back and front buffers
+  ThrowIfFailed(mSwapChain->Present(0, 0));
+  mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+  // Advance the fence value to mark commands up to this fence point.
+  mCurrentFrameResource->Fence = ++mCurrentFence;
+
+  // Add an instruction to the command queue to set a new fence point. 
+  // Because we are on the GPU timeline, the new fence point won't be 
+  // set until the GPU finishes processing all the commands prior to this Signal().
+  mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+}
 
 void PortalsApp::OnMouseDown(WPARAM btnState, int x, int y) {
   mLastMousePos.x = x;
@@ -803,6 +905,22 @@ void PortalsApp::UpdatePassCB(
 
   UploadBuffer<PassConstants>* currentPassCB = mCurrentFrameResource->PassCB.get();
   currentPassCB->CopyData(index, passCB);
+}
+
+void PortalsApp::DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* ri) {
+  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+  ID3D12Resource* objectCB = mCurrentFrameResource->ObjectCB->Resource();
+
+  cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
+  cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
+  cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+  D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
+      objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+  cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+  cmdList->DrawIndexedInstanced(
+      ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,

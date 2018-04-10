@@ -78,6 +78,8 @@ private:
   void UpdateFrameCB(const Portal* clipPortal);
   void UpdatePassCB(int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float viewScale);
 
+  void DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* ri);
+
   XMFLOAT3 mAmbientLight;
   DirectionalLight mDirLights[NUM_LIGHTS];
 
