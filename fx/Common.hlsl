@@ -13,9 +13,9 @@ struct MaterialData {
 
 struct DirectionalLight {
   float3 Strength;
-  float Pad0;
+  float LightPad0;
   float3 Direction;
-  float Pad1;
+  float LightPad1;
 };
 
 Texture2D gPortalADiffuseMap : register(t0);
@@ -53,10 +53,10 @@ cbuffer cbFrame : register(b2) {
   float4x4 gPortalA;
   float4x4 gPortalB;
   float3 gClipPlanePosition;
-  float gFramePad1;
+  float gFramePad0;
   float3 gClipPlaneNormal;
   float gClipPlaneOffset;
   float3 gAmbientLight;
-  float gFramePad0;
+  float gFramePad1;
   DirectionalLight gLights[NUM_LIGHTS];
 };

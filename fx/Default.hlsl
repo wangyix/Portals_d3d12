@@ -75,14 +75,11 @@ VertexOut VS(VertexIn vin) {
   return vout;
 }
 
-float4 PS(VertexOut pin) : SV_TARGET {
-  float3 texColor = gTextureMaps[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
-  return float4(texColor, 1);
-/*
+float4 PS(VertexOut pin) : SV_TARGET {  
 #ifdef CLIP_PLANE
   clip(dot(pin.PosW - gClipPlanePosition, gClipPlaneNormal) - gClipPlaneOffset);
 #endif
-
+  
   // Interpolating normal can unnormalize it, so renormalize it.
   pin.NormalW = normalize(pin.NormalW);
 
@@ -95,13 +92,13 @@ float4 PS(VertexOut pin) : SV_TARGET {
       gTextureMaps[matData.DiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC)).rgb;
 
   float3 result = gAmbientLight * diffuseAlbedo;
-
+  
   [unroll]
   for (int i = 0; i < NUM_LIGHTS; ++i) {
     result += ComputeDirectionalLight(
         gLights[i], diffuseAlbedo, matData.Specular, pin.NormalW, toEyeDirW);
   }
-
+  /*
   // |portalDiffuse| will be alpha-blended with result from lighting calculations.
   float4 portalDiffuse = float4(0.0f, 0.0f, 0.0f, 0.0f);
 #ifdef DRAW_PORTAL_A
@@ -133,6 +130,6 @@ float4 PS(VertexOut pin) : SV_TARGET {
   // Blend result with fog color.
   float fogS = saturate((distToEye / gViewScale - FOG_START) / FOG_RANGE);
   result = lerp(result, FOG_COLOR, fogS);
-
-  return float4(result, 1.0f);*/
+  */
+  return float4(result, 1.0f);
 }

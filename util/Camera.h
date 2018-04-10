@@ -40,6 +40,8 @@ public:
 	XMMATRIX GetProjMatrix()const;
 	void Orthonormalize();
 
+  const FirstPersonObject* GetAttachedTo() const;
+
 	void SetPosition(XMFLOAT3 Position);
 	void SetLens(float Near, float Far, float FovY);
 	void SetAspect(float Aspect);

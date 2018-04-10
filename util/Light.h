@@ -6,11 +6,13 @@
 
 using namespace DirectX;
 
+// Replaces Light in d3dUtil.h
 struct DirectionalLight {
   XMFLOAT3 Strength = { 0.0f, 0.0f, 0.0f };
   XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f }; // points down
 };
 
+// Replaces Material in d3dUtil.h
 struct PhongMaterial {
   // Index into constant buffer corresponding to this material.
   int MatCBIndex = -1;

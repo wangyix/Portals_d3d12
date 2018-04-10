@@ -90,24 +90,24 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
   : D3DApp(hInstance),
     mRightButtonIsDown(false),
     mCurrentCamera(&mLeftCamera),
-    mCurrentPortal(&mOrangePortal),
-    mOtherPortal(&mBluePortal),
-    mPlayerIntersectOrangePortal(false),
-    mPlayerIntersectBluePortal(false) {
+    mCurrentPortal(&mPortalA),
+    mOtherPortal(&mPortalB),
+    mPlayerIntersectPortalA(false),
+    mPlayerIntersectPortalB(false),
+    mCurrentPortalBoxRenderItem(&mPortalBoxARenderItem) {
   mClientWidth = 1280;
   mClientHeight = 720;
 
-  mAmbientLight = XMFLOAT3(0.2f, 0.2f, 0.2f);
-  mDirLights[0].Strength = XMFLOAT3(1.0f, 1.0f, 1.0f);
+  mAmbientLight = XMFLOAT3(0.3f, 0.3f, 0.3f);
+  mDirLights[0].Strength = XMFLOAT3(0.7f, 0.7f, 0.7f);
   mDirLights[0].Direction = XMFLOAT3(0.57735f, -0.57735f, 0.57735f);
   mDirLights[1].Strength = XMFLOAT3(0.5f, 0.5f, 0.5f);
   mDirLights[1].Direction = XMFLOAT3(-0.57735f, -0.57735f, 0.57735f);
-  mDirLights[2].Strength = XMFLOAT3(0.2f, 0.2f, 0.2f);
+  mDirLights[2].Strength = XMFLOAT3(0.5f, 0.5f, 0.5f);
   mDirLights[2].Direction = XMFLOAT3(0.0f, -0.707f, -0.707f);
 
   mLeftCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
   mRightCamera.SetLens(0.01f, 500.0f, 0.25 * PI);
-  mRightCamera.AttachToObject(&mPlayer);
 }
 
 PortalsApp::~PortalsApp() {
@@ -128,9 +128,10 @@ bool PortalsApp::Initialize() {
       md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   
   ReadRoomFile("room.txt");
+  mRightCamera.AttachToObject(&mPlayer);  // Updates mRightCamera's position, orientation
 
-  LoadTexture("orange_portal", L"textures/orange_portal2.dds");
-  LoadTexture("blue_portal", L"textures/blue_portal2.dds");
+  LoadTexture("portalA", L"textures/orange_portal2.dds");
+  LoadTexture("portalB", L"textures/blue_portal2.dds");
   LoadTexture("room", L"textures/tile.dds");
   LoadTexture("player", L"textures/stone.dds");
 
@@ -233,11 +234,11 @@ void PortalsApp::BuildDescriptorHeaps() {
   // Fill the heap with descriptors.
   ComPtr<ID3D12Resource> tex2DList[4] = {
     // Put the descriptors for the textures used for gTextureMaps[2] first in the heap so that
-    // PhongMaterial::DiffuseSrvHeapIndex matches MaterialData::DiffuseMapIndex.
+    // PhongMaterial::DiffuseSrvHeapIndex matches PhongMaterialData::DiffuseMapIndex.
     mTextures["room"].Resource,
     mTextures["player"].Resource,
-    mTextures["orange_portal"].Resource,
-    mTextures["blue_portal"].Resource
+    mTextures["portalA"].Resource,
+    mTextures["portalB"].Resource
   };
   CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(
       mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
@@ -419,13 +420,13 @@ void PortalsApp::BuildShapeGeometry() {
 void PortalsApp::BuildMaterials() {
   PhongMaterial* roomMaterial = &mMaterials["room"];
   roomMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  roomMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+  roomMaterial->Specular = XMFLOAT4(0.6f, 0.6f, 0.6f, 64.0f);
   roomMaterial->MatCBIndex = 0;
   roomMaterial->DiffuseSrvHeapIndex = 0;
 
   PhongMaterial* playerMaterial = &mMaterials["player"];
   playerMaterial->Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
-  playerMaterial->Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 16.0f);
+  playerMaterial->Specular = XMFLOAT4(0.6f, 0.6f, 0.6f, 64.0f);
   playerMaterial->MatCBIndex = 1;
   playerMaterial->DiffuseSrvHeapIndex = 1;
 
@@ -445,7 +446,7 @@ void PortalsApp::BuildRenderItems() {
   mRoomRenderItem.StartIndexLocation = roomSubMesh.StartIndexLocation;
   mRoomRenderItem.BaseVertexLocation = roomSubMesh.BaseVertexLocation;
 
-  mPlayerRenderItem.World = XMMatrixIdentity();
+  mPlayerRenderItem.World = mPlayer.GetWorldMatrix();   // Update whenever player moves
   mPlayerRenderItem.TexTransform = XMMatrixIdentity();
   mPlayerRenderItem.ObjCBIndex = 1;
   mPlayerRenderItem.Mat = &mMaterials["player"];
@@ -456,16 +457,27 @@ void PortalsApp::BuildRenderItems() {
   mPlayerRenderItem.StartIndexLocation = playerSubmesh.StartIndexLocation;
   mPlayerRenderItem.BaseVertexLocation = playerSubmesh.BaseVertexLocation;
 
-  mPortalBoxRenderItem.World = XMMatrixIdentity();
-  mPortalBoxRenderItem.TexTransform = XMMatrixIdentity();   // unused
-  mPortalBoxRenderItem.ObjCBIndex = 2;
-  mPortalBoxRenderItem.Mat = &mMaterials["unused"];         // unused
-  mPortalBoxRenderItem.Geo = &mGeometries["shapeGeo"];
-  mPortalBoxRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-  const SubmeshGeometry& portalBoxSubmesh = mPortalBoxRenderItem.Geo->DrawArgs["portalBox"];
-  mPortalBoxRenderItem.IndexCount = portalBoxSubmesh.IndexCount;
-  mPortalBoxRenderItem.StartIndexLocation = portalBoxSubmesh.StartIndexLocation;
-  mPortalBoxRenderItem.BaseVertexLocation = portalBoxSubmesh.BaseVertexLocation;
+  mPortalBoxARenderItem.World = mPortalA.GetBoxWorldMatrix(); // Update whenever portal A moves
+  mPortalBoxARenderItem.TexTransform = XMMatrixIdentity();    // unused
+  mPortalBoxARenderItem.ObjCBIndex = 2;
+  mPortalBoxARenderItem.Mat = &mMaterials["unused"];          // unused
+  mPortalBoxARenderItem.Geo = &mGeometries["shapeGeo"];
+  mPortalBoxARenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  const SubmeshGeometry& portalBoxASubmesh = mPortalBoxARenderItem.Geo->DrawArgs["portalBoxA"];
+  mPortalBoxARenderItem.IndexCount = portalBoxASubmesh.IndexCount;
+  mPortalBoxARenderItem.StartIndexLocation = portalBoxASubmesh.StartIndexLocation;
+  mPortalBoxARenderItem.BaseVertexLocation = portalBoxASubmesh.BaseVertexLocation;
+
+  mPortalBoxBRenderItem.World = mPortalB.GetBoxWorldMatrix(); // Update whenever portal B moves
+  mPortalBoxBRenderItem.TexTransform = XMMatrixIdentity();    // unused
+  mPortalBoxBRenderItem.ObjCBIndex = 3;
+  mPortalBoxBRenderItem.Mat = &mMaterials["unused"];          // unused
+  mPortalBoxBRenderItem.Geo = &mGeometries["shapeGeo"];
+  mPortalBoxBRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  const SubmeshGeometry& portalBoxBSubmesh = mPortalBoxBRenderItem.Geo->DrawArgs["portalBoxB"];
+  mPortalBoxBRenderItem.IndexCount = portalBoxBSubmesh.IndexCount;
+  mPortalBoxBRenderItem.StartIndexLocation = portalBoxBSubmesh.StartIndexLocation;
+  mPortalBoxBRenderItem.BaseVertexLocation = portalBoxBSubmesh.BaseVertexLocation;
 #else
 
   mRoomRenderItem.World = XMMatrixScaling(1.5f, 1.5f, 1.0f);
@@ -587,17 +599,17 @@ void PortalsApp::Update(const GameTimer& gt) {
   }
 
   // Portals cannot be changed if either portal intersects the player or the spectator camera
-  bool modifyPortal = (!mPlayerIntersectOrangePortal && !mPlayerIntersectBluePortal) &&
-    !mOrangePortal.DiscIntersectSphere(
+  bool modifyPortal = (!mPlayerIntersectPortalA && !mPlayerIntersectPortalB) &&
+    !mPortalA.DiscIntersectSphere(
         mLeftCamera.GetPosition(), mLeftCamera.GetBoundingSphereRadius() + 0.001f) &&
-    !mBluePortal.DiscIntersectSphere(
+    !mPortalB.DiscIntersectSphere(
         mLeftCamera.GetPosition(), mLeftCamera.GetBoundingSphereRadius() + 0.001f);
 
   OnKeyboardInput(gt.DeltaTime(), modifyPortal);
   UpdateObjectCBs();
   UpdateMaterialBuffer();
 
-  UpdateFrameCB(&mOrangePortal);  // test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  UpdateFrameCB(&mPortalA);  // test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 void PortalsApp::Draw(const GameTimer& gt) {
@@ -641,7 +653,7 @@ void PortalsApp::Draw(const GameTimer& gt) {
       mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
   mCommandList->SetGraphicsRootDescriptorTable(5, baseSrvDescriptor);
 
-  // Bind orange_portal and blue_portal textures to gPortalADiffuseMap and gPortalBDiffuseMap.
+  // Bind portalA and portalB textures to gPortalADiffuseMap and gPortalBDiffuseMap.
   baseSrvDescriptor.Offset(2, mCbvSrvUavDescriptorSize);
   mCommandList->SetGraphicsRootDescriptorTable(4, baseSrvDescriptor);
 
@@ -670,6 +682,8 @@ void PortalsApp::Draw(const GameTimer& gt) {
   // Draw room
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
+
+  DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
 
 
   // Indicate a state transition on the resource usage.
@@ -752,37 +766,37 @@ void PortalsApp::ReadRoomFile(const std::string& path) {
   sscanf_s(line.c_str(), "%f %f %f", &a, &b, &c);
   mPlayer.SetPosition(XMFLOAT3(a, b, c));
 
-  // Orange portal
+  // Portal A
   // Initial radius
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f", &a);
-  mOrangePortal.SetIntendedPhysicalRadius(a);
+  mPortalA.SetIntendedPhysicalRadius(a);
   // Initial position
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f %f %f", &a, &b, &c);
-  mOrangePortal.SetPosition(XMFLOAT3(a, b, c));
+  mPortalA.SetPosition(XMFLOAT3(a, b, c));
   // Initial normal
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f %f %f", &a, &b, &c);
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f %f %f", &d, &e, &f);
-  mOrangePortal.SetNormalAndUp(XMFLOAT3(a, b, c), XMFLOAT3(d, e, f));
+  mPortalA.SetNormalAndUp(XMFLOAT3(a, b, c), XMFLOAT3(d, e, f));
 
-  // Blue portal
+  // Portal B
   // Initial radius
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f", &a);
-  mBluePortal.SetIntendedPhysicalRadius(a);
+  mPortalB.SetIntendedPhysicalRadius(a);
   // Initial position
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f %f %f", &a, &b, &c);
-  mBluePortal.SetPosition(XMFLOAT3(a, b, c));
+  mPortalB.SetPosition(XMFLOAT3(a, b, c));
   // Initial normal
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f %f %f", &a, &b, &c);
   GetNextDataLine(&ifs, &line);
   sscanf_s(line.c_str(), "%f %f %f", &d, &e, &f);
-  mBluePortal.SetNormalAndUp(XMFLOAT3(a, b, c), XMFLOAT3(d, e, f));
+  mPortalB.SetNormalAndUp(XMFLOAT3(a, b, c), XMFLOAT3(d, e, f));
 
   // Floor, ceiling heights
   GetNextDataLine(&ifs, &line);
@@ -809,16 +823,18 @@ void PortalsApp::ReadRoomFile(const std::string& path) {
 }
 
 void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
-  // Select which portal to control
+  // Update which portal to control
   if (GetAsyncKeyState('O') & 0x8000) {
-    mCurrentPortal = &mOrangePortal;
-    mOtherPortal = &mBluePortal;
+    mCurrentPortal = &mPortalA;
+    mOtherPortal = &mPortalB;
+    mCurrentPortalBoxRenderItem = &mPortalBoxARenderItem;
   } else if (GetAsyncKeyState('B') & 0x8000) {
-    mCurrentPortal = &mBluePortal;
-    mOtherPortal = &mOrangePortal;
+    mCurrentPortal = &mPortalB;
+    mOtherPortal = &mPortalA;
+    mCurrentPortalBoxRenderItem = &mPortalBoxBRenderItem;
   }
 
-  // Select which camera to control
+  // Update which camera to control
   if (GetAsyncKeyState('1') & 0x8000)
     mCurrentCamera = &mLeftCamera;
   else if (GetAsyncKeyState('2') & 0x8000)
@@ -848,8 +864,13 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
     if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
       speed *= CAMERA_MOVEMENT_SPRINT_MULTIPLIER;
     dir = dir / dir_length;
-    SpherePath::MoveCameraAlongPathIterative(*mCurrentCamera, dir, speed * dt,
-      mRoom, mOrangePortal, mBluePortal);
+    SpherePath::MoveCameraAlongPathIterative(
+        *mCurrentCamera, dir, speed * dt, mRoom, mPortalA, mPortalB);
+    // Update player world matrix if this is the camera attached to the player.
+    if (mCurrentCamera->GetAttachedTo() == &mPlayer) {
+      mPlayerRenderItem.World = mPlayer.GetWorldMatrix();
+      mPlayerRenderItem.NumFramesDirty = gNumFrameResources;
+    }
   }
   
   // Update camera orientation
@@ -891,19 +912,23 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
       PortalSizeIncreaseUnits += 1.0f;
     if (GetAsyncKeyState(VK_DOWN) & 0x8000)
       PortalSizeIncreaseUnits -= 1.0f;
-    if (PortalSizeIncreaseUnits != 0.0f)
-    {
+    if (PortalSizeIncreaseUnits != 0.0f) {
       float NewRadius = mCurrentPortal->GetPhysicalRadius() +
           (PortalSizeIncreaseUnits * PORTAL_SIZE_CHANGE_SPEED * dt);
       mCurrentPortal->SetIntendedPhysicalRadius(NewRadius);
     }
+    // Update portal box world matrix
+    mCurrentPortalBoxRenderItem->World = mCurrentPortal->GetBoxWorldMatrix();
+    mCurrentPortalBoxRenderItem->NumFramesDirty = gNumFrameResources;
   }
 }
 
 void PortalsApp::UpdateObjectCBs() {
   UploadBuffer<ObjectConstants>* currentObjectCB = mCurrentFrameResource->ObjectCB.get();
 #if QUAD == 0
-  for (RenderItem* item : { &mRoomRenderItem, &mPlayerRenderItem, &mPortalBoxRenderItem }) {
+  RenderItem* items[] = {
+      &mRoomRenderItem, &mPlayerRenderItem, &mPortalBoxARenderItem, &mPortalBoxBRenderItem };
+  for (RenderItem* item : items) {
 #else
 RenderItem* item = &mRoomRenderItem;   // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   {
@@ -926,13 +951,14 @@ RenderItem* item = &mRoomRenderItem;   // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 void PortalsApp::UpdateMaterialBuffer() {
-  UploadBuffer<MaterialData>* currentMaterialBuffer = mCurrentFrameResource->MaterialBuffer.get();
+  UploadBuffer<PhongMaterialData>* currentMaterialBuffer =
+      mCurrentFrameResource->MaterialBuffer.get();
   for (std::pair<const std::string, PhongMaterial>& e : mMaterials) {
     // Only update the cbuffer data if the constants have changed.  If the cbuffer
     // data changes, it needs to be updated for each FrameResource.
     PhongMaterial* mat = &e.second;
     if (mat->NumFramesDirty > 0) {
-      MaterialData matData;
+      PhongMaterialData matData;
       matData.Diffuse = mat->Diffuse;
       matData.Specular = mat->Specular;
       matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
@@ -946,13 +972,16 @@ void PortalsApp::UpdateMaterialBuffer() {
 
 void PortalsApp::UpdateFrameCB(const Portal* clipPortal) {
   FrameConstants frameCB;
-  XMStoreFloat4x4(&frameCB.PortalA, XMMatrixTranspose(mOrangePortal.GetScaledPortalMatrix()));
-  XMStoreFloat4x4(&frameCB.PortalB, XMMatrixTranspose(mBluePortal.GetScaledPortalMatrix()));
-  frameCB.AmbientLight = mAmbientLight;
+  XMStoreFloat4x4(&frameCB.PortalA, XMMatrixTranspose(mPortalA.GetScaledPortalMatrix()));
+  XMStoreFloat4x4(&frameCB.PortalB, XMMatrixTranspose(mPortalB.GetScaledPortalMatrix()));
   frameCB.ClipPlanePosition = clipPortal->GetPosition();
   frameCB.ClipPlaneNormal = clipPortal->GetNormal();
   frameCB.ClipPlaneOffset = 0.0f;
-  memcpy(frameCB.Lights, mDirLights, NUM_LIGHTS * sizeof(DirectionalLight));
+  frameCB.AmbientLight = mAmbientLight;
+  for (int i = 0; i < NUM_LIGHTS; ++i) {
+    frameCB.Lights[i].Strength = mDirLights[i].Strength;
+    frameCB.Lights[i].Direction = mDirLights[i].Direction;
+  }
 
   UploadBuffer<FrameConstants>* currentFrameCB = mCurrentFrameResource->FrameCB.get();
   currentFrameCB->CopyData(0, frameCB);

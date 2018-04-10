@@ -23,20 +23,27 @@ struct PassConstants
   float ViewScale = 1.0f;
 };
 
+struct DirectionalLightData {
+  XMFLOAT3 Strength = { 0.0f, 0.0f, 0.0f };
+  float LightPad0;
+  XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };
+  float LightPad1;
+};
+
 struct FrameConstants
 {
   DirectX::XMFLOAT4X4 PortalA = MathHelper::Identity4x4();
   DirectX::XMFLOAT4X4 PortalB = MathHelper::Identity4x4();
-  DirectX::XMFLOAT3 AmbientLight = { 0.0f, 0.0f, 0.0f };
-  float PassPad0;
   DirectX::XMFLOAT3 ClipPlanePosition = { 0.0f, 0.0f, 0.0f };
-  float PassPad1;
+  float PassPad0;
   DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
   float ClipPlaneOffset = 0.0f;
-  DirectionalLight Lights[NUM_LIGHTS];
+  DirectX::XMFLOAT3 AmbientLight = { 0.0f, 0.0f, 0.0f };
+  float PassPad1;
+  DirectionalLightData Lights[NUM_LIGHTS];
 };
 
-struct MaterialData
+struct PhongMaterialData
 {
   DirectX::XMFLOAT4 Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
   DirectX::XMFLOAT4 Specular = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -74,7 +81,7 @@ public:
   std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
   std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
   
-  std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
+  std::unique_ptr<UploadBuffer<PhongMaterialData>> MaterialBuffer = nullptr;
 
   // Fence value to mark commands up to this fence point.  This lets us
   // check if these frame resources are still in use by the GPU.

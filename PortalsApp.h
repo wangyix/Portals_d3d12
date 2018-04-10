@@ -100,12 +100,12 @@ private:
   Room mRoom;
 
   // Portal
-  Portal mOrangePortal;
-  Portal mBluePortal;
+  Portal mPortalA;
+  Portal mPortalB;
   Portal* mCurrentPortal;   // Portal currently selected by user
   Portal* mOtherPortal;
-  bool mPlayerIntersectOrangePortal;
-  bool mPlayerIntersectBluePortal;
+  bool mPlayerIntersectPortalA;
+  bool mPlayerIntersectPortalB;
 
   // Player
   FirstPersonObject mPlayer;
@@ -133,7 +133,9 @@ private:
 
   RenderItem mRoomRenderItem;
   RenderItem mPlayerRenderItem;
-  RenderItem mPortalBoxRenderItem;
+  RenderItem mPortalBoxARenderItem;
+  RenderItem mPortalBoxBRenderItem;
+  RenderItem* mCurrentPortalBoxRenderItem;
 
   PassConstants mMainPassCB;
 };

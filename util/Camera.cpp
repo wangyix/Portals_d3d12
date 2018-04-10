@@ -96,6 +96,10 @@ void Camera::Orthonormalize()
 		AttachedTo->SetOrientation(Right, Up, Look);
 }
 
+const FirstPersonObject* Camera::GetAttachedTo() const {
+  return AttachedTo;
+}
+
 void Camera::UpdateProjMatrix()
 {
 	float h = tanf(FovY/2.0f);
