@@ -8,8 +8,9 @@ namespace {
   bool GetNextDataLine(std::ifstream* ifs, std::string* line) {
     line->clear();
     do {
-      *ifs >> std::noskipws;
-    } while (std::getline(*ifs, *line) && !line->empty() && line->front() != 'w');
+      *ifs >> std::ws;  // read leading whitespace
+      // line can't be empty, so line->front() is safe
+    } while (std::getline(*ifs, *line) && line->front() == '#');
     return !ifs->eof();
   }
 
@@ -282,8 +283,9 @@ void PortalsApp::BuildShadersAndInputLayout() {
     { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
   };
 }
-
+#define QUAD 0
 void PortalsApp::BuildShapeGeometry() {
+#if QUAD == 0
   UINT numTotalIndices = 0;
   INT numTotalVertices = 0;
 
@@ -375,6 +377,43 @@ void PortalsApp::BuildShapeGeometry() {
   //geo->DrawArgs["ceiling"] = ceilingSubmesh;
   geo->DrawArgs["player"] = playerSubmesh;
   geo->DrawArgs["portalBox"] = portalBoxSubmesh;
+#else
+
+  {
+    std::vector<Vertex> vertices = {
+      { { -0.5f, -0.5f, 0.5f },{ 0.0f, 0.0f, -1.0f },{ 0.0f, 0.0f } },
+      { { 0.5f, -0.5f, 0.5f },{ 0.0f, 0.0f, -1.0f },{ 1.0f, 0.0f } },
+      { { 0.5f, 0.5f, 0.5f },{ 0.0f, 0.0f, -1.0f },{ 1.0f, 1.0f } },
+      { { -0.5f, 0.5f, 0.5f },{ 0.0f, 0.0f, -1.0f },{ 0.0f, 1.0f } }
+    };
+    std::vector<uint16_t> indices = {
+      0,2,1,
+      0,3,2 };
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = 6;
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    const UINT vbByteSize = vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = indices.size() * sizeof(std::uint16_t);
+    MeshGeometry* geo = &mGeometries["shapeGeo"];
+    geo->Name = "shapeGeo";
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+      mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+      mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+    geo->VertexByteStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+    geo->DrawArgs["quad"] = submesh;
+  }
+#endif
 }
 
 void PortalsApp::BuildMaterials() {
@@ -394,6 +433,7 @@ void PortalsApp::BuildMaterials() {
 }
 
 void PortalsApp::BuildRenderItems() {
+#if QUAD == 0
   mRoomRenderItem.World = XMMatrixIdentity();
   mRoomRenderItem.TexTransform = XMMatrixScaling(0.25f, 0.25f, 1.0f);
   mRoomRenderItem.ObjCBIndex = 0;
@@ -426,6 +466,19 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxRenderItem.IndexCount = portalBoxSubmesh.IndexCount;
   mPortalBoxRenderItem.StartIndexLocation = portalBoxSubmesh.StartIndexLocation;
   mPortalBoxRenderItem.BaseVertexLocation = portalBoxSubmesh.BaseVertexLocation;
+#else
+
+  mRoomRenderItem.World = XMMatrixScaling(1.5f, 1.5f, 1.0f);
+  mRoomRenderItem.TexTransform = XMMatrixScaling(0.3f, 0.3f, 1.0f)*XMMatrixTranslation(0.0f, 0.125f, 0.0f);
+  mRoomRenderItem.ObjCBIndex = 0;
+  mRoomRenderItem.Mat = &mMaterials["room"];
+  mRoomRenderItem.Geo = &mGeometries["shapeGeo"];
+  mRoomRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  const SubmeshGeometry& roomSubMesh = mRoomRenderItem.Geo->DrawArgs["quad"];
+  mRoomRenderItem.IndexCount = roomSubMesh.IndexCount;
+  mRoomRenderItem.StartIndexLocation = roomSubMesh.StartIndexLocation;
+  mRoomRenderItem.BaseVertexLocation = roomSubMesh.BaseVertexLocation;
+#endif
 }
 
 void PortalsApp::BuildFrameResources() {
@@ -464,7 +517,7 @@ void PortalsApp::BuildPSOs() {
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["default"])));
-
+  
   // default PSO with pixels clipped against a plane and stencil test pass when equal to ref value.
   shader = mShaders["defaultClipPS"].Get();
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
@@ -544,7 +597,7 @@ void PortalsApp::Update(const GameTimer& gt) {
   UpdateObjectCBs();
   UpdateMaterialBuffer();
 
-  UpdateFrameCB(&mOrangePortal);  // test!!
+  UpdateFrameCB(&mOrangePortal);  // test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 void PortalsApp::Draw(const GameTimer& gt) {
@@ -566,7 +619,7 @@ void PortalsApp::Draw(const GameTimer& gt) {
   mCommandList->RSSetScissorRects(1, &mScissorRect);
 
   // Clear the back and depth buffer.
-  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::Black, 0, nullptr);
+  mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::SkyBlue, 0, nullptr);
   mCommandList->ClearDepthStencilView(
     DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
@@ -604,11 +657,15 @@ void PortalsApp::Draw(const GameTimer& gt) {
   XMMATRIX viewProj = mLeftCamera.GetViewMatrix() * mLeftCamera.GetProjMatrix();
   XMFLOAT3 eyePosW = mLeftCamera.GetPosition();
   float viewScale = mLeftCamera.GetViewScale();
+#if QUAD == 0
   UpdatePassCB(0, viewProj, eyePosW, viewScale);
+#else
+  UpdatePassCB(0, XMMatrixScaling(0.5f, 1.0f, 1.0f)*XMMatrixTranslation(0.2f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -2.0f), 0.5f);  // TEST!!!!!!!!!!!!!!!!!!
+#endif
   // Bind per-pass constant buffer.
   UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
   mCommandList->SetGraphicsRootConstantBufferView(
-    1, mCurrentFrameResource->FrameCB->Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
+    1, mCurrentFrameResource->PassCB->Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
 
   // Draw room
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
@@ -845,7 +902,12 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
 
 void PortalsApp::UpdateObjectCBs() {
   UploadBuffer<ObjectConstants>* currentObjectCB = mCurrentFrameResource->ObjectCB.get();
+#if QUAD == 0
   for (RenderItem* item : { &mRoomRenderItem, &mPlayerRenderItem, &mPortalBoxRenderItem }) {
+#else
+RenderItem* item = &mRoomRenderItem;   // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  {
+#endif
     // Only update the buffer data if the constants have changed. This needs to be tracked per
     // frame resource.
     if (item->NumFramesDirty > 0) {

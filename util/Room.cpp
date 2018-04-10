@@ -716,8 +716,8 @@ void Room::BuildMeshData(GeometryGenerator::MeshData *RoomMesh, SubmeshGeometry 
 	RoomMesh->Indices.clear();
 
 
-	INT WallsVertexCount = 0;
-	UINT WallsIndexCount = 0;
+	INT TotalVertexCount = 0;
+	UINT TotalIndexCount = 0;
 	GeometryGenerator::Vertex Vert;
 	for (unsigned int P=0; P<BoundaryPolygons.size(); ++P)
 	{
@@ -762,19 +762,19 @@ void Room::BuildMeshData(GeometryGenerator::MeshData *RoomMesh, SubmeshGeometry 
 			// add to indices
 
 			// upper left triangle
-			RoomMesh->Indices.push_back(WallsVertexCount);
-			RoomMesh->Indices.push_back(WallsVertexCount + 1);
-			RoomMesh->Indices.push_back(WallsVertexCount + 2);
+			RoomMesh->Indices.push_back(TotalVertexCount);
+			RoomMesh->Indices.push_back(TotalVertexCount + 1);
+			RoomMesh->Indices.push_back(TotalVertexCount + 2);
 			// bottom right triangle
-			RoomMesh->Indices.push_back(WallsVertexCount);
-			RoomMesh->Indices.push_back(WallsVertexCount + 2);
-			RoomMesh->Indices.push_back(WallsVertexCount + 3);
+			RoomMesh->Indices.push_back(TotalVertexCount);
+			RoomMesh->Indices.push_back(TotalVertexCount + 2);
+			RoomMesh->Indices.push_back(TotalVertexCount + 3);
 
-			WallsVertexCount += 4;
-			WallsIndexCount += 6; 
+			TotalVertexCount += 4;
+			TotalIndexCount += 6; 
 		}
 	}
-  WallsSubmesh->IndexCount = WallsIndexCount;
+  WallsSubmesh->IndexCount = TotalIndexCount;
   WallsSubmesh->StartIndexLocation = 0;
   WallsSubmesh->BaseVertexLocation = 0;
 
@@ -785,8 +785,8 @@ void Room::BuildMeshData(GeometryGenerator::MeshData *RoomMesh, SubmeshGeometry 
 
 	// add floor offsets
   FloorSubmesh->IndexCount = 6;
-  FloorSubmesh->StartIndexLocation = WallsIndexCount;
-  FloorSubmesh->BaseVertexLocation = WallsVertexCount;
+  FloorSubmesh->StartIndexLocation = TotalIndexCount;
+  FloorSubmesh->BaseVertexLocation = 0;
 
 	// add floor vertices
 	Vert.Normal = XMFLOAT3(0.0f, 1.0f, 0.0f);
@@ -813,18 +813,21 @@ void Room::BuildMeshData(GeometryGenerator::MeshData *RoomMesh, SubmeshGeometry 
 	RoomMesh->Vertices.push_back(Vert);
 
 	// add floor indices
-	RoomMesh->Indices.push_back(0);
-	RoomMesh->Indices.push_back(1);
-	RoomMesh->Indices.push_back(2);
-	RoomMesh->Indices.push_back(0);
-	RoomMesh->Indices.push_back(2);
-	RoomMesh->Indices.push_back(3);
+	RoomMesh->Indices.push_back(TotalVertexCount + 0);
+	RoomMesh->Indices.push_back(TotalVertexCount + 1);
+	RoomMesh->Indices.push_back(TotalVertexCount + 2);
+	RoomMesh->Indices.push_back(TotalVertexCount + 0);
+	RoomMesh->Indices.push_back(TotalVertexCount + 2);
+	RoomMesh->Indices.push_back(TotalVertexCount + 3);
+
+  TotalVertexCount += 4;
+  TotalIndexCount += 6;
 
 
 	// add ceiling offsets
-  CeilingSubmesh->IndexCount = 6u;
-  CeilingSubmesh->StartIndexLocation = WallsIndexCount + 6u;
-  CeilingSubmesh->BaseVertexLocation = WallsVertexCount + 4;
+  CeilingSubmesh->IndexCount = 6;
+  CeilingSubmesh->StartIndexLocation = TotalIndexCount;
+  CeilingSubmesh->BaseVertexLocation = 0;
 
 	// add ceiling vertices
 	Vert.Normal = XMFLOAT3(0.0f, -1.0f, 0.0f);
@@ -851,10 +854,13 @@ void Room::BuildMeshData(GeometryGenerator::MeshData *RoomMesh, SubmeshGeometry 
 	RoomMesh->Vertices.push_back(Vert);
 
 	// add ceiling indices
-	RoomMesh->Indices.push_back(0);
-	RoomMesh->Indices.push_back(2);
-	RoomMesh->Indices.push_back(3);
-	RoomMesh->Indices.push_back(0);
-	RoomMesh->Indices.push_back(1);
-	RoomMesh->Indices.push_back(2);
+	RoomMesh->Indices.push_back(TotalVertexCount + 0);
+	RoomMesh->Indices.push_back(TotalVertexCount + 2);
+	RoomMesh->Indices.push_back(TotalVertexCount + 3);
+	RoomMesh->Indices.push_back(TotalVertexCount + 0);
+	RoomMesh->Indices.push_back(TotalVertexCount + 1);
+	RoomMesh->Indices.push_back(TotalVertexCount + 2);
+
+  TotalVertexCount += 4;
+  TotalIndexCount += 6;
 }

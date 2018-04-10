@@ -46,18 +46,18 @@ struct VertexOut {
 
 VertexOut VS(VertexIn vin) {
   VertexOut vout;
-
+  
   // Transform to world space.
   float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
   vout.PosW = posW.xyz;
   vout.NormalW = mul(vin.NormalL, (float3x3)gWorldInvTranspose);  // normalize this?
-
+  
   // Transform to homogeneous clip space.
   vout.PosH = mul(posW, gViewProj);
-
+  
   // Output vertex attributes for interpolation across triangle.
   vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
-
+  
 #ifdef DRAW_PORTAL_A
   {
     // Transform from room's object space to portal space of both portals
@@ -71,10 +71,14 @@ VertexOut VS(VertexIn vin) {
     vout.PosPB = PosP.xyz / PosP.w;
   }
 #endif
+
   return vout;
 }
 
 float4 PS(VertexOut pin) : SV_TARGET {
+  float3 texColor = gTextureMaps[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+  return float4(texColor, 1);
+/*
 #ifdef CLIP_PLANE
   clip(dot(pin.PosW - gClipPlanePosition, gClipPlaneNormal) - gClipPlaneOffset);
 #endif
@@ -130,5 +134,5 @@ float4 PS(VertexOut pin) : SV_TARGET {
   float fogS = saturate((distToEye / gViewScale - FOG_START) / FOG_RANGE);
   result = lerp(result, FOG_COLOR, fogS);
 
-  return float4(result, 1.0f);
+  return float4(result, 1.0f);*/
 }
