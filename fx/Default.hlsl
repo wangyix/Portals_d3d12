@@ -98,7 +98,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
     result += ComputeDirectionalLight(
         gLights[i], diffuseAlbedo, matData.Specular, pin.NormalW, toEyeDirW);
   }
-  /*
+  
   // |portalDiffuse| will be alpha-blended with result from lighting calculations.
   float4 portalDiffuse = float4(0.0f, 0.0f, 0.0f, 0.0f);
 #ifdef DRAW_PORTAL_A
@@ -126,7 +126,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
   }
 #endif
   result = lerp(result, portalDiffuse.rgb, portalDiffuse.a);
-
+  /*
   // Blend result with fog color.
   float fogS = saturate((distToEye / gViewScale - FOG_START) / FOG_RANGE);
   result = lerp(result, FOG_COLOR, fogS);

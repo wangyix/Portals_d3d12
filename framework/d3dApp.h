@@ -45,8 +45,8 @@ public:
 protected:
   virtual void CreateRtvAndDsvDescriptorHeaps();
   virtual void OnResize();
-  virtual void Update(const GameTimer& gt) = 0;
-  virtual void Draw(const GameTimer& gt) = 0;
+  virtual void Update(float dt) = 0;
+  virtual void Draw(float dt) = 0;
 
   // Convenience overrides for handling mouse input.
   virtual void OnMouseDown(WPARAM btnState, int x, int y) { }
@@ -84,11 +84,11 @@ protected:
   bool      mResizing = false;   // are the resize bars being dragged?
   bool      mFullscreenState = false;// fullscreen enabled
 
-// Set true to use 4X MSAA (§4.1.8).  The default is false.
+  // Set true to use 4X MSAA (§4.1.8).  The default is false.
   bool      m4xMsaaState = false;    // 4X MSAA enabled
   UINT      m4xMsaaQuality = 0;      // quality level of 4X MSAA
 
-// Used to keep track of the “delta-time” and game time (§4.4).
+  // Used to keep track of the “delta-time” and game time (§4.4).
   GameTimer mTimer;
 
   Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
@@ -124,5 +124,6 @@ protected:
   DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
   int mClientWidth = 800;
   int mClientHeight = 600;
+  float mMinFrameTime = 0.0f;
 };
 

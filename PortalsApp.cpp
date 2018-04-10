@@ -97,6 +97,7 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
     mCurrentPortalBoxRenderItem(&mPortalBoxARenderItem) {
   mClientWidth = 1280;
   mClientHeight = 720;
+  mMinFrameTime = 1.0f / 10.0f;
 
   mAmbientLight = XMFLOAT3(0.3f, 0.3f, 0.3f);
   mDirLights[0].Strength = XMFLOAT3(0.7f, 0.7f, 0.7f);
@@ -583,7 +584,7 @@ void PortalsApp::OnResize() {
   mRightCamera.SetAspect(AspectRatio());
 }
 
-void PortalsApp::Update(const GameTimer& gt) {
+void PortalsApp::Update(float dt) {
   // Cycle through the circular frame resource array.
   mCurrentFrameResourceIndex = (mCurrentFrameResourceIndex + 1) % gNumFrameResources;
   mCurrentFrameResource = mFrameResources[mCurrentFrameResourceIndex].get();
@@ -605,14 +606,14 @@ void PortalsApp::Update(const GameTimer& gt) {
     !mPortalB.DiscIntersectSphere(
         mLeftCamera.GetPosition(), mLeftCamera.GetBoundingSphereRadius() + 0.001f);
 
-  OnKeyboardInput(gt.DeltaTime(), modifyPortal);
+  OnKeyboardInput(dt, modifyPortal);
   UpdateObjectCBs();
   UpdateMaterialBuffer();
 
   UpdateFrameCB(&mPortalA);  // test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
-void PortalsApp::Draw(const GameTimer& gt) {
+void PortalsApp::Draw(float dt) {
   ComPtr<ID3D12CommandAllocator> cmdListAlloc = mCurrentFrameResource->CmdListAlloc;
 
   // Reuse the memory associated with command recording.

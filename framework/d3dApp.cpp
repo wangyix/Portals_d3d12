@@ -74,6 +74,7 @@ int D3DApp::Run()
   MSG msg = { 0 };
 
   mTimer.Reset();
+  float prevFrameTime = 0.0f;
 
   while (msg.message != WM_QUIT)
   {
@@ -91,8 +92,14 @@ int D3DApp::Run()
       if (!mAppPaused)
       {
         CalculateFrameStats();
-        Update(mTimer);
-        Draw(mTimer);
+        Update(prevFrameTime + mTimer.DeltaTime());
+        Draw(prevFrameTime + mTimer.DeltaTime());
+
+        mTimer.Tick();
+
+        prevFrameTime = mTimer.DeltaTime();
+        if (prevFrameTime < mMinFrameTime)
+          Sleep((DWORD)(1000.0f * (mMinFrameTime - prevFrameTime)));
       } else
       {
         Sleep(100);
@@ -573,14 +580,16 @@ void D3DApp::CalculateFrameStats()
   // are appended to the window caption bar.
 
   static int frameCnt = 0;
-  static float timeElapsed = 0.0f;
+  static float prevUpdateTime = 0.0f;
 
   frameCnt++;
 
-  // Compute averages over one second period.
-  if ((mTimer.TotalTime() - timeElapsed) >= 1.0f)
+  // Compute averages over an at-least one second period.
+  float currentTime = mTimer.TotalTime();
+  float timeSincePrevUpdate = currentTime - prevUpdateTime;
+  if (timeSincePrevUpdate >= 1.0f)
   {
-    float fps = (float)frameCnt; // fps = frameCnt / 1
+    float fps = (float)frameCnt / timeSincePrevUpdate;
     float mspf = 1000.0f / fps;
 
     wstring fpsStr = to_wstring(fps);
@@ -594,7 +603,7 @@ void D3DApp::CalculateFrameStats()
 
     // Reset for next average.
     frameCnt = 0;
-    timeElapsed += 1.0f;
+    prevUpdateTime = currentTime;
   }
 }
 

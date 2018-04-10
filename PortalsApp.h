@@ -52,8 +52,8 @@ public:
   
 protected:
   void OnResize() override;
-  void Update(const GameTimer& gt) override;
-  void Draw(const GameTimer& gt) override;
+  void Update(float dt) override;
+  void Draw(float dt) override;
   
   void OnMouseDown(WPARAM btnState, int x, int y) override;
   void OnMouseUp(WPARAM btnState, int x, int y) override;
