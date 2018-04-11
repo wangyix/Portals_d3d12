@@ -68,7 +68,7 @@ public:
 	void Orthonormalize();
 	XMMATRIX GetBoxWorldMatrix()const;		// portal space to world space
 	XMMATRIX GetPortalMatrix()const;	// world space to portal space
-	XMMATRIX GetScaledPortalMatrix()const;	// world space to portal space, scaled by PhysicalRadius
+	XMMATRIX GetScaledPortalMatrix()const;	// world space to portal space, scaled by PhysicalRadius in X,Y axes
 
 	static XMMATRIX CalculateVirtualizationMatrix(const Portal &LookThru, const Portal &Other);
 

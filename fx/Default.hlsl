@@ -57,19 +57,16 @@ VertexOut VS(VertexIn vin) {
   
   // Output vertex attributes for interpolation across triangle.
   vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
-  
+
+  // Transform from world space to portal space of both portals.
+  // In portal space, the portal is centered at origin in XY plane with radius 1. The Z-axis
+  // of portal space is not scaled relative to world space, while the X,Y axes are scaled by the
+  // reciprocal of the portal's world-space hole radius.
 #ifdef DRAW_PORTAL_A
-  {
-    // Transform from room's object space to portal space of both portals
-    float4 PosP = mul(float4(vin.PosL, 1.0f), gPortalA);
-    vout.PosPA = PosP.xyz / PosP.w;
-  }
+  vout.PosPA = mul(posW, gPortalA).xyz;
 #endif
 #ifdef DRAW_PORTAL_B
-  {
-    float4 PosP = mul(float4(vin.PosL, 1.0f), gPortalB);
-    vout.PosPB = PosP.xyz / PosP.w;
-  }
+  vout.PosPB = mul(posW, gPortalB).xyz;
 #endif
 
   return vout;
@@ -79,7 +76,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
 #ifdef CLIP_PLANE
   clip(dot(pin.PosW - gClipPlanePosition, gClipPlaneNormal) - gClipPlaneOffset);
 #endif
-  
+
   // Interpolating normal can unnormalize it, so renormalize it.
   pin.NormalW = normalize(pin.NormalW);
 
@@ -92,6 +89,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
       gTextureMaps[matData.DiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC)).rgb;
 
   float3 result = gAmbientLight * diffuseAlbedo;
+
   
   [unroll]
   for (int i = 0; i < NUM_LIGHTS; ++i) {
@@ -102,7 +100,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
   // |portalDiffuse| will be alpha-blended with result from lighting calculations.
   float4 portalDiffuse = float4(0.0f, 0.0f, 0.0f, 0.0f);
 #ifdef DRAW_PORTAL_A
-  if (abs(pin.PosPA.z <= PORTAL_Z_EPSILON)) {
+  if (abs(pin.PosPA.z) <= PORTAL_Z_EPSILON) {
     // Drop pixel if it's within the portal hole
     clip(dot(pin.PosPA.xy, pin.PosPA.xy) - 1.0f);
 
@@ -126,10 +124,10 @@ float4 PS(VertexOut pin) : SV_TARGET {
   }
 #endif
   result = lerp(result, portalDiffuse.rgb, portalDiffuse.a);
-  /*
+  
   // Blend result with fog color.
   float fogS = saturate((distToEye / gViewScale - FOG_START) / FOG_RANGE);
   result = lerp(result, FOG_COLOR, fogS);
-  */
+  
   return float4(result, 1.0f);
 }

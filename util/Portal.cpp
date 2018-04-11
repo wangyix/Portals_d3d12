@@ -553,11 +553,12 @@ XMMATRIX Portal::GetScaledPortalMatrix()const
 	float tU = -XMVectorGetX(XMVector3Dot(P, U));
 	float tN = -XMVectorGetX(XMVector3Dot(P, N));
 
-	// scaled by PhysicalRadius
-	return XMMATRIX(	Left.x,		Up.x,			Normal.x,		0.0f,
-						Left.y,		Up.y,			Normal.y,		0.0f,
-						Left.z,		Up.z,			Normal.z,		0.0f,
-						tL,			tU,				tN,				PhysicalRadius	);
+	// scaled by 1/PhysicalRadius in X, Y axes
+  float r = PhysicalRadius;
+	return XMMATRIX(	Left.x / r,		Up.x / r,			Normal.x,		0.0f,
+						        Left.y / r,		Up.y / r,			Normal.y,		0.0f,
+						        Left.z / r,		Up.z / r,			Normal.z,		0.0f,
+						        tL / r,			  tU / r,				tN,				  1.0f	);
 }
 
 

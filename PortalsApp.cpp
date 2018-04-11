@@ -97,7 +97,7 @@ PortalsApp::PortalsApp(HINSTANCE hInstance)
     mCurrentPortalBoxRenderItem(&mPortalBoxARenderItem) {
   mClientWidth = 1280;
   mClientHeight = 720;
-  mMinFrameTime = 1.0f / 10.0f;
+  mMinFrameTime = 1.0f / 300.0f;
 
   mAmbientLight = XMFLOAT3(0.3f, 0.3f, 0.3f);
   mDirLights[0].Strength = XMFLOAT3(0.7f, 0.7f, 0.7f);
@@ -135,6 +135,9 @@ bool PortalsApp::Initialize() {
   LoadTexture("portalB", L"textures/blue_portal2.dds");
   LoadTexture("room", L"textures/tile.dds");
   LoadTexture("player", L"textures/stone.dds");
+
+  mPortalA.SetTextureRadiusRatio(PORTAL_TEX_RAD_RATIO);
+  mPortalB.SetTextureRadiusRatio(PORTAL_TEX_RAD_RATIO);
 
   BuildRootSignature();
   BuildDescriptorHeaps();
@@ -264,7 +267,8 @@ void PortalsApp::BuildShadersAndInputLayout() {
       { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr },
-      { nullptr, nullptr }};
+      { nullptr, nullptr },
+      { nullptr, nullptr } };
   mShaders["portalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
   mShaders["portalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
   defines[1] = { "CLIP_PLANE", nullptr };
@@ -272,11 +276,13 @@ void PortalsApp::BuildShadersAndInputLayout() {
   defines[1] = { "CLEAR_DEPTH", nullptr };
   mShaders["portalBoxClearDepthPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
 
-  defines[1] = { "DRAW_PORTAL_A", nullptr };
-  defines[2] = { "DRAW_PORTAL_B", nullptr };
+  std::string portalTexRadRatioStr = std::to_string(PORTAL_TEX_RAD_RATIO);
+  defines[1] = { "PORTAL_TEX_RAD_RATIO", portalTexRadRatioStr.c_str() };
+  defines[2] = { "DRAW_PORTAL_A", nullptr };
+  defines[3] = { "DRAW_PORTAL_B", nullptr };
   mShaders["defaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
   mShaders["defaultPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
-  defines[3] = { "CLIP_PLANE", nullptr };
+  defines[4] = { "CLIP_PLANE", nullptr };
   mShaders["defaultClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
 
   mInputLayout = {
@@ -650,13 +656,13 @@ void PortalsApp::Draw(float dt) {
   mCommandList->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());
 
   // Bind room and player textures to gTextureMaps[2].
-  CD3DX12_GPU_DESCRIPTOR_HANDLE baseSrvDescriptor(
+  CD3DX12_GPU_DESCRIPTOR_HANDLE srvDescriptor(
       mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-  mCommandList->SetGraphicsRootDescriptorTable(5, baseSrvDescriptor);
+  mCommandList->SetGraphicsRootDescriptorTable(5, srvDescriptor);
 
   // Bind portalA and portalB textures to gPortalADiffuseMap and gPortalBDiffuseMap.
-  baseSrvDescriptor.Offset(2, mCbvSrvUavDescriptorSize);
-  mCommandList->SetGraphicsRootDescriptorTable(4, baseSrvDescriptor);
+  srvDescriptor.Offset(2, mCbvSrvUavDescriptorSize);
+  mCommandList->SetGraphicsRootDescriptorTable(4, srvDescriptor);
 
   // Bind per-frame constant buffer.
   mCommandList->SetGraphicsRootConstantBufferView(

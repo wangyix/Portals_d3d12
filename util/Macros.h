@@ -36,6 +36,6 @@
 
 #define PORTAL_MIN_PHYS_RADIUS 0.1f				// used in PortalRelocate to limit how small portals can be
 
-
+#define PORTAL_TEX_RAD_RATIO 1.22f
 
 #endif
