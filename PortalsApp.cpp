@@ -436,8 +436,6 @@ void PortalsApp::BuildMaterials() {
   playerMaterial->Specular = XMFLOAT4(0.6f, 0.6f, 0.6f, 64.0f);
   playerMaterial->MatCBIndex = 1;
   playerMaterial->DiffuseSrvHeapIndex = 1;
-
-  PhongMaterial* unusedMaterial = &mMaterials["unused"];
 }
 
 void PortalsApp::BuildRenderItems() {
@@ -467,7 +465,7 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxARenderItem.World = mPortalA.GetBoxWorldMatrix(); // Update whenever portal A moves
   mPortalBoxARenderItem.TexTransform = XMMatrixIdentity();    // unused
   mPortalBoxARenderItem.ObjCBIndex = 2;
-  mPortalBoxARenderItem.Mat = &mMaterials["unused"];          // unused
+  mPortalBoxARenderItem.Mat = &mMaterials["room"];            // unused
   mPortalBoxARenderItem.Geo = &mGeometries["shapeGeo"];
   mPortalBoxARenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
   const SubmeshGeometry& portalBoxASubmesh = mPortalBoxARenderItem.Geo->DrawArgs["portalBoxA"];
@@ -478,7 +476,7 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxBRenderItem.World = mPortalB.GetBoxWorldMatrix(); // Update whenever portal B moves
   mPortalBoxBRenderItem.TexTransform = XMMatrixIdentity();    // unused
   mPortalBoxBRenderItem.ObjCBIndex = 3;
-  mPortalBoxBRenderItem.Mat = &mMaterials["unused"];          // unused
+  mPortalBoxBRenderItem.Mat = &mMaterials["room"];            // unused
   mPortalBoxBRenderItem.Geo = &mGeometries["shapeGeo"];
   mPortalBoxBRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
   const SubmeshGeometry& portalBoxBSubmesh = mPortalBoxBRenderItem.Geo->DrawArgs["portalBoxB"];
