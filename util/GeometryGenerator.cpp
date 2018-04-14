@@ -5,14 +5,14 @@ using namespace DirectX;
 // Mesh only needs Position data.  
 void GeometryGenerator::Tessellate(std::vector<XMFLOAT3> &Positions, std::vector<UINT> &Indices)
 {
-	unsigned OldIndicesCount = Indices.size();
+	size_t OldIndicesCount = Indices.size();
 
 	// for each triangle in the mesh, replace it with 4 triangles
 	XMFLOAT3 A, B, C;
 	UINT Ai, Bi, Ci;
 	XMFLOAT3 AB, BC, CA;
 	UINT ABi, BCi, CAi;
-	for (unsigned int i=0; i<OldIndicesCount; i+=3)
+	for (size_t i=0; i<OldIndicesCount; i+=3)
 	{
 		// get triangle
 		Ai = Indices[i];
@@ -23,7 +23,7 @@ void GeometryGenerator::Tessellate(std::vector<XMFLOAT3> &Positions, std::vector
 		C = Positions[Ci];
 
 		// find midpoints of each side
-		int CurrentVerticesCount = Positions.size();
+		UINT CurrentVerticesCount = static_cast<UINT>(Positions.size());
 		ABi = CurrentVerticesCount;
 		BCi = CurrentVerticesCount+1;
 		CAi = CurrentVerticesCount+2;

@@ -23,11 +23,11 @@ ComPtr<ID3DBlob> d3dUtil::LoadBinary(const std::wstring& filename)
     std::ifstream fin(filename, std::ios::binary);
 
     fin.seekg(0, std::ios_base::end);
-    std::ifstream::pos_type size = (int)fin.tellg();
+    std::streampos size = fin.tellg();
     fin.seekg(0, std::ios_base::beg);
 
     ComPtr<ID3DBlob> blob;
-    ThrowIfFailed(D3DCreateBlob(size, blob.GetAddressOf()));
+    ThrowIfFailed(D3DCreateBlob(static_cast<SIZE_T>(size), blob.GetAddressOf()));
 
     fin.read((char*)blob->GetBufferPointer(), size);
     fin.close();
@@ -67,7 +67,7 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
     // Describe the data we want to copy into the default buffer.
     D3D12_SUBRESOURCE_DATA subResourceData = {};
     subResourceData.pData = initData;
-    subResourceData.RowPitch = byteSize;
+    subResourceData.RowPitch = static_cast<LONG_PTR>(byteSize);
     subResourceData.SlicePitch = subResourceData.RowPitch;
 
     // Schedule to copy the data to the default buffer resource.  At a high level, the helper function UpdateSubresources

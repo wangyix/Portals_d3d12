@@ -39,7 +39,7 @@ private:
 		void AddVertex(const XMFLOAT2 &V);
 		void Delete(int Index);
 		BoundaryElement* operator[](const int Index)const;
-		unsigned int size()const;
+		size_t size()const;
 	private:
 		std::vector<BoundaryElement*> ElementPointers;
 	};
@@ -118,7 +118,6 @@ private:
 	float MaxX;
 	float MinZ;
 	float MaxZ;
-	int WallCount;
 
 	float FloorY;				// height of floor
 	float CeilingY;				// height of ceiling

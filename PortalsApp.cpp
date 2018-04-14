@@ -304,31 +304,31 @@ void PortalsApp::BuildShapeGeometry() {
   GeometryGenerator::MeshData roomMesh;
   mRoom.BuildMeshData(&roomMesh, &wallsSubmesh, &floorSubmesh, &ceilingSubmesh);
   SubmeshGeometry roomSubmesh;
-  roomSubmesh.IndexCount = roomMesh.Indices.size();
+  roomSubmesh.IndexCount = static_cast<UINT>(roomMesh.Indices.size());
   roomSubmesh.StartIndexLocation = numTotalIndices;
   roomSubmesh.BaseVertexLocation = numTotalVertices;
-  numTotalIndices += roomMesh.Indices.size();
-  numTotalVertices += roomMesh.Vertices.size();
+  numTotalIndices += static_cast<UINT>(roomMesh.Indices.size());
+  numTotalVertices += static_cast<INT>(roomMesh.Vertices.size());
 
   // Generate player mesh and submesh.
   GeometryGenerator::MeshData playerMesh;
   GeometryGenerator::GenerateSphere(playerMesh, 1.0f, 3);
   SubmeshGeometry playerSubmesh;
-  playerSubmesh.IndexCount = playerMesh.Indices.size();
+  playerSubmesh.IndexCount = static_cast<UINT>(playerMesh.Indices.size());
   playerSubmesh.StartIndexLocation = numTotalIndices;
   playerSubmesh.BaseVertexLocation = numTotalVertices;
-  numTotalIndices += playerMesh.Indices.size();
-  numTotalVertices += playerMesh.Vertices.size();
+  numTotalIndices += static_cast<UINT>(playerMesh.Indices.size());
+  numTotalVertices += static_cast<INT>(playerMesh.Vertices.size());
 
   // Generate portal-box mesh and submesh
   GeometryGenerator::MeshData portalBoxMesh;
   Portal::BuildBoxMeshData(&portalBoxMesh);
   SubmeshGeometry portalBoxSubmesh;
-  portalBoxSubmesh.IndexCount = portalBoxMesh.Indices.size();
+  portalBoxSubmesh.IndexCount = static_cast<UINT>(portalBoxMesh.Indices.size());
   portalBoxSubmesh.StartIndexLocation = numTotalIndices;
   portalBoxSubmesh.BaseVertexLocation = numTotalVertices;
-  numTotalIndices += portalBoxMesh.Indices.size();
-  numTotalVertices += portalBoxMesh.Vertices.size();
+  numTotalIndices += static_cast<UINT>(portalBoxMesh.Indices.size());
+  numTotalVertices += static_cast<INT>(portalBoxMesh.Vertices.size());
 
   // Concatenate room and player mesh vertices into one vector.
   std::vector<Vertex> vertices(numTotalVertices);
@@ -363,8 +363,8 @@ void PortalsApp::BuildShapeGeometry() {
   }
   
   // Generate MeshGeometry of concatenated meshes.
-  const UINT vbByteSize = vertices.size() * sizeof(Vertex);
-  const UINT ibByteSize = indices.size() * sizeof(std::uint16_t);
+  const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
+  const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
   MeshGeometry* geo = &mGeometries["shapeGeo"];
   geo->Name = "shapeGeo";
   ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
@@ -502,7 +502,7 @@ void PortalsApp::BuildFrameResources() {
   for (int i = 0; i < gNumFrameResources; ++i) {
     mFrameResources.push_back(std::make_unique<FrameResource>(
         md3dDevice.Get(), /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
-        /*objectCount=*/2, /*materialCount=*/mMaterials.size()));
+        /*objectCount=*/2, /*materialCount=*/static_cast<UINT>(mMaterials.size())));
   }
 }
 

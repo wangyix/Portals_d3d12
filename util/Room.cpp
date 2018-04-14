@@ -28,7 +28,7 @@ Room::BoundaryElement* Room::BoundaryElementsList::operator[](const int Index)co
 {
 	return ElementPointers[Index];
 }
-unsigned int Room::BoundaryElementsList::size()const
+size_t Room::BoundaryElementsList::size()const
 {
 	return ElementPointers.size();
 }
@@ -162,7 +162,7 @@ void Room::BoundaryVertex::PrintInfo()const
 
 // ROOM STUFF ***************************************************************************************************
 Room::Room()
-	: FloorY(0.0f), CeilingY(0.0f), MinX(0.0f), MaxX(0.0f), MinZ(0.0f), MaxZ(0.0f), WallCount(0)
+	: FloorY(0.0f), CeilingY(0.0f), MinX(0.0f), MaxX(0.0f), MinZ(0.0f), MaxZ(0.0f)
 {
 }
 
@@ -176,12 +176,10 @@ void Room::SetFloorAndCeiling(float FloorHeight, float CeilingHeight)
 void Room::SetTopography(const std::vector<std::vector<XMFLOAT2>> &Polygons)
 {
 	BoundaryPolygons.resize(Polygons.size());
-	WallCount = 0;
 	for (unsigned int i=0; i<Polygons.size(); ++i)
 	{
 		// copy this polygon's vertices
 		BoundaryPolygons[i] = Polygons[i];
-		WallCount += Polygons[i].size();
 		for (unsigned int j=0; j<Polygons[i].size(); ++j)
 		{
 			MinX = min(MinX, Polygons[i][j].x);
