@@ -468,7 +468,7 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxARenderItem.Mat = &mMaterials["room"];            // unused
   mPortalBoxARenderItem.Geo = &mGeometries["shapeGeo"];
   mPortalBoxARenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-  const SubmeshGeometry& portalBoxASubmesh = mPortalBoxARenderItem.Geo->DrawArgs["portalBoxA"];
+  const SubmeshGeometry& portalBoxASubmesh = mPortalBoxARenderItem.Geo->DrawArgs["portalBox"];
   mPortalBoxARenderItem.IndexCount = portalBoxASubmesh.IndexCount;
   mPortalBoxARenderItem.StartIndexLocation = portalBoxASubmesh.StartIndexLocation;
   mPortalBoxARenderItem.BaseVertexLocation = portalBoxASubmesh.BaseVertexLocation;
@@ -479,7 +479,7 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxBRenderItem.Mat = &mMaterials["room"];            // unused
   mPortalBoxBRenderItem.Geo = &mGeometries["shapeGeo"];
   mPortalBoxBRenderItem.PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-  const SubmeshGeometry& portalBoxBSubmesh = mPortalBoxBRenderItem.Geo->DrawArgs["portalBoxB"];
+  const SubmeshGeometry& portalBoxBSubmesh = mPortalBoxBRenderItem.Geo->DrawArgs["portalBox"];
   mPortalBoxBRenderItem.IndexCount = portalBoxBSubmesh.IndexCount;
   mPortalBoxBRenderItem.StartIndexLocation = portalBoxBSubmesh.StartIndexLocation;
   mPortalBoxBRenderItem.BaseVertexLocation = portalBoxBSubmesh.BaseVertexLocation;
@@ -502,7 +502,7 @@ void PortalsApp::BuildFrameResources() {
   for (int i = 0; i < gNumFrameResources; ++i) {
     mFrameResources.push_back(std::make_unique<FrameResource>(
         md3dDevice.Get(), /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
-        /*objectCount=*/2, /*materialCount=*/static_cast<UINT>(mMaterials.size())));
+        /*objectCount=*/4, /*materialCount=*/static_cast<UINT>(mMaterials.size())));
   }
 }
 
@@ -684,11 +684,21 @@ void PortalsApp::Draw(float dt) {
   mCommandList->SetGraphicsRootConstantBufferView(
     1, mCurrentFrameResource->PassCB->Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
 
-  // Draw room
+  // Draw room and player
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
+  // Rest of the rendering steps depends on whether or not the player intersects a portal
+  if (mPlayerIntersectPortalA || mPlayerIntersectPortalB) {
 
-  DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+  } else {
+    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+    // Render portal box A to stencil
+    mCommandList->OMSetStencilRef(1);
+    mCommandList->SetPipelineState(mPSOs["portalBoxStencilSet"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+  }
+  
 
 
   // Indicate a state transition on the resource usage.
