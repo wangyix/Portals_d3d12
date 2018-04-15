@@ -691,9 +691,9 @@ void PortalsApp::Draw(float dt) {
   XMFLOAT3 virtualEyePosW = mLeftCamera.GetPosition();
   XMVECTOR virtualEyePosWH =
       XMVectorSet(virtualEyePosW.x, virtualEyePosW.y, virtualEyePosW.z, 1.0f);
-  float virtualViewScale = mLeftCamera.GetViewScale();
+  float virtualDistDilation = 1.0f / mLeftCamera.GetViewScale();
 #if QUAD == 0
-  UpdatePassCB(0, virtualViewProj, virtualEyePosW, virtualViewScale);
+  UpdatePassCB(0, virtualViewProj, virtualEyePosW, virtualDistDilation);
 #else
   UpdatePassCB(0, XMMatrixScaling(0.5f, 1.0f, 1.0f)*XMMatrixTranslation(0.2f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -2.0f), 0.5f);  // TEST!!!!!!!!!!!!!!!!!!
 #endif
@@ -735,9 +735,9 @@ void PortalsApp::Draw(float dt) {
     // Update per-pass constant buffer.
     virtualViewProj = virtualizeBtoA * virtualViewProj;
     virtualEyePosWH = XMVector4Transform(virtualEyePosWH, virtualizeAtoB);
-    virtualViewScale /= radiusAoverB;
+    virtualDistDilation *= radiusAoverB;
     XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
-    UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualViewScale);
+    UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualDistDilation);
     // Bind per-pass constant buffer.
     UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
     mCommandList->SetGraphicsRootConstantBufferView(
@@ -1054,11 +1054,11 @@ void PortalsApp::UpdateClipPlaneCB(int index, const Portal* clipPortal) {
 }
 
 void PortalsApp::UpdatePassCB(
-    int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float viewScale) {
+    int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float distDilation) {
   PassConstants passCB;
   XMStoreFloat4x4(&passCB.ViewProj, XMMatrixTranspose(viewProj));
   passCB.EyePosW = eyePosW;
-  passCB.ViewScale = viewScale;
+  passCB.DistDilation = distDilation;
 
   mCurrentFrameResource->PassCB.CopyData(index, passCB);
 }

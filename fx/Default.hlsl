@@ -123,7 +123,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
 #endif
   
   // Blend result with fog color.
-  float fogS = saturate((distToEye / gViewScale - FOG_START) / FOG_RANGE);
+  float fogS = saturate((distToEye * gDistDilation - FOG_START) / FOG_RANGE);
   result = lerp(result, FOG_COLOR, fogS);
   
   return float4(result, 1.0f);

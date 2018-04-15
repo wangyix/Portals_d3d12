@@ -19,7 +19,7 @@ struct ObjectConstants
 struct PassConstants {
   DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
   DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
-  float ViewScale = 1.0f;
+  float DistDilation = 1.0f;
 };
 
 struct ClipPlaneConstants {

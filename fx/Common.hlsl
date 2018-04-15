@@ -46,7 +46,7 @@ cbuffer cbPerObject : register(b0) {
 cbuffer cbPass : register(b1) {
   float4x4 gViewProj;
   float3 gEyePosW;
-  float gViewScale;
+  float gDistDilation;
 };
 
 cbuffer cbClipPlane : register(b2) {
