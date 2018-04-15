@@ -36,10 +36,8 @@ struct VertexOut {
   float3 PosW    : POSITION;
   float3 NormalW : NORMAL;
   float2 TexC     : TEXCOORD0;
-#ifdef DRAW_PORTAL_A
+#ifdef DRAW_PORTALS
   float3 PosPA	: POSITION1;		// position in portalA space
-#endif
-#ifdef DRAW_PORTAL_B
   float3 PosPB	: POSITION2;		// position in portalB space
 #endif
 };
@@ -62,10 +60,8 @@ VertexOut VS(VertexIn vin) {
   // In portal space, the portal is centered at origin in XY plane with radius 1. The Z-axis
   // of portal space is not scaled relative to world space, while the X,Y axes are scaled by the
   // reciprocal of the portal's world-space hole radius.
-#ifdef DRAW_PORTAL_A
+#ifdef DRAW_PORTALS
   vout.PosPA = mul(posW, gPortalA).xyz;
-#endif
-#ifdef DRAW_PORTAL_B
   vout.PosPB = mul(posW, gPortalB).xyz;
 #endif
 
@@ -97,10 +93,10 @@ float4 PS(VertexOut pin) : SV_TARGET {
         gLights[i], diffuseAlbedo, matData.Specular, pin.NormalW, toEyeDirW);
   }
   
-#if defined DRAW_PORTAL_A || defined DRAW_PORTAL_B
+#ifdef DRAW_PORTALS
   // |portalDiffuse| will be alpha-blended with result from lighting calculations.
   float4 portalDiffuse = float4(0.0f, 0.0f, 0.0f, 0.0f);
-#ifdef DRAW_PORTAL_A
+
   if (abs(pin.PosPA.z) <= PORTAL_Z_EPSILON) {
     // Drop pixel if it's within the portal hole
     clip(dot(pin.PosPA.xy, pin.PosPA.xy) - 1.0f);
@@ -111,8 +107,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
     float2 texC = 0.5f * (1.0f - pin.PosPA.xy / PORTAL_TEX_RAD_RATIO);
     portalDiffuse += gPortalADiffuseMap.Sample(gsamAnisotropicBlackBorder, texC);
   }
-#endif
-#ifdef DRAW_PORTAL_B
+
   if (abs(pin.PosPB.z) <= PORTAL_Z_EPSILON) {
     // Drop pixel if it's within the portal hole
     clip(dot(pin.PosPB.xy, pin.PosPB.xy) - 1.0f);
@@ -123,7 +118,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
     float2 texC = 0.5f * (1.0f - pin.PosPB.xy / PORTAL_TEX_RAD_RATIO);
     portalDiffuse += gPortalBDiffuseMap.Sample(gsamAnisotropicBlackBorder, texC);
   }
-#endif
+
   result = lerp(result, portalDiffuse.rgb, portalDiffuse.a);
 #endif
   
