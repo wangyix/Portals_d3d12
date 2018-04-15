@@ -4,7 +4,15 @@
 #include "SpherePath.h"
 
 namespace {
-  
+  const UINT CB_PER_OBJECT_ROOT_INDEX = 0;
+  const UINT CB_PER_PASS_ROOT_INDEX = 1;
+  const UINT CB_CLIP_PLANE_ROOT_INDEX = 2;
+  const UINT CB_PER_FRAME_ROOT_INDEX = 3;
+  const UINT SRV_MATERIAL_DATA_ROOT_INDEX = 4;
+  const UINT DT_PORTAL_MAPS_ROOT_INDEX = 5;
+  const UINT DT_TEXTURE_MAPS_ROOT_INDEX = 6;
+  const UINT NUM_ROOT_PARAMETERS = 7;
+
   bool GetNextDataLine(std::ifstream* ifs, std::string* line) {
     line->clear();
     do {
@@ -176,17 +184,19 @@ void PortalsApp::BuildRootSignature() {
   CD3DX12_DESCRIPTOR_RANGE texTable1;
   texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2, 0);
 
-  CD3DX12_ROOT_PARAMETER rootParameters[7];
+  CD3DX12_ROOT_PARAMETER rootParameters[NUM_ROOT_PARAMETERS];
   // Order from most frequent to least frequent.
-  rootParameters[0].InitAsConstantBufferView(0);      // cbPerObject
-  rootParameters[1].InitAsConstantBufferView(1);      // cbPass
-  rootParameters[2].InitAsConstantBufferView(2);      // cbClipPlane
-  rootParameters[3].InitAsConstantBufferView(3);      // cbFrame
-  rootParameters[4].InitAsShaderResourceView(0, 1);   // gMaterialData
+  rootParameters[CB_PER_OBJECT_ROOT_INDEX].InitAsConstantBufferView(0);    // cbPerObject
+  rootParameters[CB_PER_PASS_ROOT_INDEX].InitAsConstantBufferView(1);      // cbPass
+  rootParameters[CB_CLIP_PLANE_ROOT_INDEX].InitAsConstantBufferView(2);    // cbClipPlane
+  rootParameters[CB_PER_FRAME_ROOT_INDEX].InitAsConstantBufferView(3);     // cbFrame
+  rootParameters[SRV_MATERIAL_DATA_ROOT_INDEX].InitAsShaderResourceView(0, 1);   // gMaterialData
   // gPortalADiffuseMap, gPortalBDiffuseMap
-  rootParameters[5].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[DT_PORTAL_MAPS_ROOT_INDEX].InitAsDescriptorTable(
+      1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
   // gTextureMaps
-  rootParameters[6].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[DT_TEXTURE_MAPS_ROOT_INDEX].InitAsDescriptorTable(
+      1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
   const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
       0,                                  // shaderRegister
@@ -667,20 +677,21 @@ void PortalsApp::Draw(float dt) {
   // Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
   // set as a root descriptor.
   mCommandList->SetGraphicsRootShaderResourceView(
-      4, mCurrentFrameResource->MaterialBuffer.Resource()->GetGPUVirtualAddress());
+      SRV_MATERIAL_DATA_ROOT_INDEX,
+      mCurrentFrameResource->MaterialBuffer.Resource()->GetGPUVirtualAddress());
 
   // Bind room and player textures to gTextureMaps[2].
   CD3DX12_GPU_DESCRIPTOR_HANDLE srvDescriptor(
       mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-  mCommandList->SetGraphicsRootDescriptorTable(6, srvDescriptor);
+  mCommandList->SetGraphicsRootDescriptorTable(DT_TEXTURE_MAPS_ROOT_INDEX, srvDescriptor);
 
   // Bind portalA and portalB textures to gPortalADiffuseMap and gPortalBDiffuseMap.
   srvDescriptor.Offset(2, mCbvSrvUavDescriptorSize);
-  mCommandList->SetGraphicsRootDescriptorTable(5, srvDescriptor);
+  mCommandList->SetGraphicsRootDescriptorTable(DT_PORTAL_MAPS_ROOT_INDEX, srvDescriptor);
 
   // Bind per-frame constant buffer.
   mCommandList->SetGraphicsRootConstantBufferView(
-      3, mCurrentFrameResource->FrameCB.Resource()->GetGPUVirtualAddress()); 
+      CB_PER_FRAME_ROOT_INDEX, mCurrentFrameResource->FrameCB.Resource()->GetGPUVirtualAddress());
 
 
 
@@ -698,9 +709,9 @@ void PortalsApp::Draw(float dt) {
   UpdatePassCB(0, XMMatrixScaling(0.5f, 1.0f, 1.0f)*XMMatrixTranslation(0.2f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -2.0f), 0.5f);  // TEST!!!!!!!!!!!!!!!!!!
 #endif
   // Bind per-pass constant buffer.
-  UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
   mCommandList->SetGraphicsRootConstantBufferView(
-    1, mCurrentFrameResource->PassCB.Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
+      CB_PER_PASS_ROOT_INDEX,
+      mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
 
   // Draw room
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
@@ -722,10 +733,9 @@ void PortalsApp::Draw(float dt) {
     DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
 
     // Bind clip-plane constant buffer to portal B clip plane values.
-    UINT clipPlaneCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ClipPlaneConstants));
     mCommandList->SetGraphicsRootConstantBufferView(
-        2, mCurrentFrameResource->ClipPlaneCB.Resource()->GetGPUVirtualAddress() +
-            1 * clipPlaneCBByteSize);
+        CB_CLIP_PLANE_ROOT_INDEX,
+        mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(1));
 
 
     const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
@@ -739,9 +749,9 @@ void PortalsApp::Draw(float dt) {
     XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
     UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualDistDilation);
     // Bind per-pass constant buffer.
-    UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
     mCommandList->SetGraphicsRootConstantBufferView(
-        1, mCurrentFrameResource->PassCB.Resource()->GetGPUVirtualAddress() + 1 * passCBByteSize);
+        CB_PER_PASS_ROOT_INDEX,
+        mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(1));
 
     // Render room inside portal A
     mCommandList->SetPipelineState(mPSOs["defaultPortalsClipStencilEqual"].Get());
@@ -1068,11 +1078,9 @@ void PortalsApp::DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* 
   cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
   cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-  D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-      mCurrentFrameResource->ObjectCB.Resource()->GetGPUVirtualAddress() +
-      ri->ObjCBIndex * objCBByteSize;
-  cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+  cmdList->SetGraphicsRootConstantBufferView(
+      CB_PER_OBJECT_ROOT_INDEX,
+      mCurrentFrameResource->ObjectCB.GetResourceGPUVirtualAddress(ri->ObjCBIndex));
 
   cmdList->DrawIndexedInstanced(
       ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);

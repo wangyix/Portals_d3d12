@@ -105,7 +105,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
     // x:[-PORTAL_TEX_RAD_RATIO, PORTAL_TEX_RAD_RATIO] -> u:[1, 0]
     // y:[-PORTAL_TEX_RAD_RATIO, PORTAL_TEX_RAD_RATIO] -> v:[1, 0]
     float2 texC = 0.5f * (1.0f - pin.PosPA.xy / PORTAL_TEX_RAD_RATIO);
-    portalDiffuse += gPortalADiffuseMap.Sample(gsamAnisotropicBlackBorder, texC);
+    portalDiffuse += gPortalAMap.Sample(gsamAnisotropicBlackBorder, texC);
   }
 
   if (abs(pin.PosPB.z) <= PORTAL_Z_EPSILON) {
@@ -116,7 +116,7 @@ float4 PS(VertexOut pin) : SV_TARGET {
     // x:[-PORTAL_TEX_RAD_RATIO, PORTAL_TEX_RAD_RATIO] -> u:[1, 0]
     // y:[-PORTAL_TEX_RAD_RATIO, PORTAL_TEX_RAD_RATIO] -> v:[1, 0]
     float2 texC = 0.5f * (1.0f - pin.PosPB.xy / PORTAL_TEX_RAD_RATIO);
-    portalDiffuse += gPortalBDiffuseMap.Sample(gsamAnisotropicBlackBorder, texC);
+    portalDiffuse += gPortalBMap.Sample(gsamAnisotropicBlackBorder, texC);
   }
 
   result = lerp(result, portalDiffuse.rgb, portalDiffuse.a);

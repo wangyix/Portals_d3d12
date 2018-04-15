@@ -18,8 +18,8 @@ struct DirectionalLight {
   float LightPad1;
 };
 
-Texture2D gPortalADiffuseMap : register(t0);
-Texture2D gPortalBDiffuseMap : register(t1);
+Texture2D gPortalAMap : register(t0);
+Texture2D gPortalBMap : register(t1);
 
 // An array of textures, which is only supported in shader model 5.1+.
 // Unlike Texture2DArray, the textures in this array can be different sizes and formats, making it
