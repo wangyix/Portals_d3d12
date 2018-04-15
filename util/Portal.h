@@ -66,11 +66,13 @@ public:
 	bool DiscIntersectSphere(XMFLOAT3 Center, float Radius)const;
 
 	void Orthonormalize();
-	XMMATRIX GetBoxWorldMatrix()const;		// portal space to world space
-	XMMATRIX GetPortalMatrix()const;	// world space to portal space
-	XMMATRIX GetScaledPortalMatrix()const;	// world space to portal space, scaled by PhysicalRadius in X,Y axes
+  XMMATRIX GetPortalToWorldMatrix()const;
+  XMMATRIX GetWorldToPortalMatrix()const;
+	XMMATRIX GetXYScaledPortalToWorldMatrix()const;
+	XMMATRIX GetXYScaledWorldToPortalMatrix()const;
 
 	static XMMATRIX CalculateVirtualizationMatrix(const Portal &LookThru, const Portal &Other);
+
 
 	static void BuildBoxMeshData(GeometryGenerator::MeshData *PortalMesh);
 	

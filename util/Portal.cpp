@@ -212,7 +212,7 @@ XMFLOAT3 Portal::SpherePathCollision(float SphereRadius, XMFLOAT3 S, XMFLOAT3 Di
 	XMFLOAT3 Sp;
 	XMFLOAT3 Dirp;
 	
-	XMMATRIX M = GetPortalMatrix();
+	XMMATRIX M = GetWorldToPortalMatrix();
 	XMStoreFloat3(&Sp, XMVector3TransformCoord(XMLoadFloat3(&S), M));
 	XMStoreFloat3(&Dirp, XMVector3TransformNormal(XMLoadFloat3(&Dir), M));
 
@@ -512,19 +512,22 @@ void Portal::Orthonormalize()
 	XMStoreFloat3(&Normal, N);
 }
 
-XMMATRIX Portal::GetBoxWorldMatrix()const
+XMMATRIX Portal::GetPortalToWorldMatrix()const
 {
-	// scale portal box in x and y directions first to match physical portal size
-	XMMATRIX Scale = XMMatrixScaling(PhysicalRadius, PhysicalRadius, 1.0f);
-	XMMATRIX Affine = XMMATRIX(	Left.x,		Left.y,		Left.z,		0.0f,
-								Up.x,		Up.y,		Up.z,		0.0f,
-								Normal.x,	Normal.y,	Normal.z,	0.0f,
-								Position.x,	Position.y,	Position.z,	1.0f	);
-
-	return Scale * Affine;
+  return XMMATRIX(
+      Left.x,     Left.y,     Left.z,     0.0f,
+      Up.x,       Up.y,       Up.z,       0.0f,
+      Normal.x,   Normal.y,   Normal.z,   0.0f,
+      Position.x, Position.y, Position.z, 1.0f);
 }
 
-XMMATRIX Portal::GetPortalMatrix()const
+XMMATRIX Portal::GetXYScaledPortalToWorldMatrix()const
+{
+  float s = PhysicalRadius;
+  return XMMatrixScaling(s, s, 1.0f) * GetPortalToWorldMatrix();
+}
+
+XMMATRIX Portal::GetWorldToPortalMatrix()const
 {
 	XMVECTOR L = XMLoadFloat3(&Left);
 	XMVECTOR U = XMLoadFloat3(&Up);
@@ -535,30 +538,17 @@ XMMATRIX Portal::GetPortalMatrix()const
 	float tU = -XMVectorGetX(XMVector3Dot(P, U));
 	float tN = -XMVectorGetX(XMVector3Dot(P, N));
 
-	// no scaling used.  portal size does not matter for this matrix
-	return XMMATRIX(	Left.x,		Up.x,			Normal.x,		0.0f,
-						Left.y,		Up.y,			Normal.y,		0.0f,
-						Left.z,		Up.z,			Normal.z,		0.0f,
-						tL,			tU,				tN,				1.0f	);
+	return XMMATRIX(
+      Left.x,		Up.x,			Normal.x,		0.0f,
+			Left.y,		Up.y,			Normal.y,		0.0f,
+			Left.z,		Up.z,			Normal.z,		0.0f,
+			tL,			  tU,				tN,				  1.0f);
 }
 
-XMMATRIX Portal::GetScaledPortalMatrix()const
+XMMATRIX Portal::GetXYScaledWorldToPortalMatrix()const
 {
-	XMVECTOR L = XMLoadFloat3(&Left);
-	XMVECTOR U = XMLoadFloat3(&Up);
-	XMVECTOR N = XMLoadFloat3(&Normal);
-
-	XMVECTOR P = XMLoadFloat3(&Position);
-	float tL = -XMVectorGetX(XMVector3Dot(P, L));
-	float tU = -XMVectorGetX(XMVector3Dot(P, U));
-	float tN = -XMVectorGetX(XMVector3Dot(P, N));
-
-	// scaled by 1/PhysicalRadius in X, Y axes
-  float r = PhysicalRadius;
-	return XMMATRIX(	Left.x / r,		Up.x / r,			Normal.x,		0.0f,
-						        Left.y / r,		Up.y / r,			Normal.y,		0.0f,
-						        Left.z / r,		Up.z / r,			Normal.z,		0.0f,
-						        tL / r,			  tU / r,				tN,				  1.0f	);
+  float s = 1.0f / PhysicalRadius;
+  return GetWorldToPortalMatrix() * XMMatrixScaling(s, s, 1.0f);
 }
 
 
@@ -566,32 +556,9 @@ XMMATRIX Portal::GetScaledPortalMatrix()const
 // location when looking at it through a portal
 XMMATRIX Portal::CalculateVirtualizationMatrix(const Portal &LookThru, const Portal &Other)
 {
-	XMVECTOR L = XMLoadFloat3(&(Other.Left));
-	XMVECTOR U = XMLoadFloat3(&(Other.Up));
-	XMVECTOR N = XMLoadFloat3(&(Other.Normal));
-	XMVECTOR P = XMLoadFloat3(&(Other.Position));
-	float tL = -XMVectorGetX(XMVector3Dot(P, L));
-	float tU = -XMVectorGetX(XMVector3Dot(P, U));
-	float tN = -XMVectorGetX(XMVector3Dot(P, N));
-
-	XMMATRIX WorldToOtherPortalSpace = XMMATRIX(
-			Other.Left.x,	Other.Up.x,		Other.Normal.x,		0.0f,
-			Other.Left.y,	Other.Up.y,		Other.Normal.y,		0.0f,
-			Other.Left.z,	Other.Up.z,		Other.Normal.z,		0.0f,
-			tL,				tU,				tN,					1.0f
-		);
-
-	XMMATRIX LookThruPortalFlippedSpaceToWorld = 
-						XMMATRIX(
-							-LookThru.Left.x,		-LookThru.Left.y,		-LookThru.Left.z,		0.0f,
-							LookThru.Up.x,			LookThru.Up.y,			LookThru.Up.z,			0.0f,
-							-LookThru.Normal.x,		-LookThru.Normal.y,		-LookThru.Normal.z,		0.0f,
-							LookThru.Position.x,	LookThru.Position.y,	LookThru.Position.z,	1.0f
-						);
-
-	float S = LookThru.PhysicalRadius / Other.PhysicalRadius;
-
-	return WorldToOtherPortalSpace * XMMatrixScaling(S,S,S) * LookThruPortalFlippedSpaceToWorld;
+  float s = LookThru.PhysicalRadius / Other.PhysicalRadius;
+  return Other.GetWorldToPortalMatrix() * XMMatrixScaling(-s, s, -s) *
+      LookThru.GetPortalToWorldMatrix();
 }
 
 

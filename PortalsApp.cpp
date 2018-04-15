@@ -464,7 +464,7 @@ void PortalsApp::BuildRenderItems() {
   mPlayerRenderItem.StartIndexLocation = playerSubmesh.StartIndexLocation;
   mPlayerRenderItem.BaseVertexLocation = playerSubmesh.BaseVertexLocation;
 
-  mPortalBoxARenderItem.World = mPortalA.GetBoxWorldMatrix(); // Update whenever portal A moves
+  mPortalBoxARenderItem.World = mPortalA.GetXYScaledPortalToWorldMatrix(); // Update whenever portal A moves
   mPortalBoxARenderItem.TexTransform = XMMatrixIdentity();    // unused
   mPortalBoxARenderItem.ObjCBIndex = 2;
   mPortalBoxARenderItem.Mat = &mMaterials["room"];            // unused
@@ -475,7 +475,7 @@ void PortalsApp::BuildRenderItems() {
   mPortalBoxARenderItem.StartIndexLocation = portalBoxASubmesh.StartIndexLocation;
   mPortalBoxARenderItem.BaseVertexLocation = portalBoxASubmesh.BaseVertexLocation;
 
-  mPortalBoxBRenderItem.World = mPortalB.GetBoxWorldMatrix(); // Update whenever portal B moves
+  mPortalBoxBRenderItem.World = mPortalB.GetXYScaledPortalToWorldMatrix(); // Update whenever portal B moves
   mPortalBoxBRenderItem.TexTransform = XMMatrixIdentity();    // unused
   mPortalBoxBRenderItem.ObjCBIndex = 3;
   mPortalBoxBRenderItem.Mat = &mMaterials["room"];            // unused
@@ -629,6 +629,8 @@ void PortalsApp::Update(float dt) {
   UpdateObjectCBs();
   UpdateMaterialBuffer();
   UpdateFrameCB();
+  UpdateClipPlaneCB(0, &mPortalA);
+  UpdateClipPlaneCB(1, &mPortalB);
 }
 
 void PortalsApp::Draw(float dt) {
@@ -685,11 +687,13 @@ void PortalsApp::Draw(float dt) {
 
 
   // Update per-pass constant buffer.
-  XMMATRIX viewProj = mLeftCamera.GetViewMatrix() * mLeftCamera.GetProjMatrix();
-  XMFLOAT3 eyePosW = mLeftCamera.GetPosition();
-  float viewScale = mLeftCamera.GetViewScale();
+  XMMATRIX virtualViewProj = mLeftCamera.GetViewMatrix() * mLeftCamera.GetProjMatrix();
+  XMFLOAT3 virtualEyePosW = mLeftCamera.GetPosition();
+  XMVECTOR virtualEyePosWH =
+      XMVectorSet(virtualEyePosW.x, virtualEyePosW.y, virtualEyePosW.z, 1.0f);
+  float virtualViewScale = mLeftCamera.GetViewScale();
 #if QUAD == 0
-  UpdatePassCB(0, viewProj, eyePosW, viewScale);
+  UpdatePassCB(0, virtualViewProj, virtualEyePosW, virtualViewScale);
 #else
   UpdatePassCB(0, XMMatrixScaling(0.5f, 1.0f, 1.0f)*XMMatrixTranslation(0.2f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -2.0f), 0.5f);  // TEST!!!!!!!!!!!!!!!!!!
 #endif
@@ -698,20 +702,50 @@ void PortalsApp::Draw(float dt) {
   mCommandList->SetGraphicsRootConstantBufferView(
     1, mCurrentFrameResource->PassCB.Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
 
-  // Draw room and player
+  // Draw room
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
   // Rest of the rendering steps depends on whether or not the player intersects a portal
   if (mPlayerIntersectPortalA || mPlayerIntersectPortalB) {
 
   } else {
+    // Draw player
     mCommandList->SetPipelineState(mPSOs["default"].Get());
     DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
 
-    // Render portal box A to stencil
     mCommandList->OMSetStencilRef(1);
+
+    // Render portal box A to stencil
     mCommandList->SetPipelineState(mPSOs["portalBoxStencilSet"].Get());
     DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+    mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualClearDepth"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+
+    // Bind clip-plane constant buffer to portal B clip plane values.
+    UINT clipPlaneCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ClipPlaneConstants));
+    mCommandList->SetGraphicsRootConstantBufferView(
+        2, mCurrentFrameResource->ClipPlaneCB.Resource()->GetGPUVirtualAddress() +
+            1 * clipPlaneCBByteSize);
+
+
+    const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
+    const XMMATRIX virtualizeAtoB = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
+    const float radiusAoverB = mPortalA.GetPhysicalRadius() / mPortalB.GetPhysicalRadius();
+
+    // Update per-pass constant buffer.
+    virtualViewProj = virtualizeBtoA * virtualViewProj;
+    virtualEyePosWH = XMVector4Transform(virtualEyePosWH, virtualizeAtoB);
+    virtualViewScale /= radiusAoverB;
+    XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
+    UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualViewScale);
+    // Bind per-pass constant buffer.
+    UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+    mCommandList->SetGraphicsRootConstantBufferView(
+        1, mCurrentFrameResource->PassCB.Resource()->GetGPUVirtualAddress() + 1 * passCBByteSize);
+
+    // Render room inside portal A
+    mCommandList->SetPipelineState(mPSOs["defaultPortalsClipStencilEqual"].Get());
+    DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
   }
   
 
@@ -948,7 +982,7 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
       mCurrentPortal->SetIntendedPhysicalRadius(NewRadius);
     }
     // Update portal box world matrix
-    mCurrentPortalBoxRenderItem->World = mCurrentPortal->GetBoxWorldMatrix();
+    mCurrentPortalBoxRenderItem->World = mCurrentPortal->GetXYScaledPortalToWorldMatrix();
     mCurrentPortalBoxRenderItem->NumFramesDirty = gNumFrameResources;
   }
 }
@@ -999,8 +1033,8 @@ void PortalsApp::UpdateMaterialBuffer() {
 
 void PortalsApp::UpdateFrameCB() {
   FrameConstants frameCB;
-  XMStoreFloat4x4(&frameCB.PortalA, XMMatrixTranspose(mPortalA.GetScaledPortalMatrix()));
-  XMStoreFloat4x4(&frameCB.PortalB, XMMatrixTranspose(mPortalB.GetScaledPortalMatrix()));
+  XMStoreFloat4x4(&frameCB.PortalA, XMMatrixTranspose(mPortalA.GetXYScaledWorldToPortalMatrix()));
+  XMStoreFloat4x4(&frameCB.PortalB, XMMatrixTranspose(mPortalB.GetXYScaledWorldToPortalMatrix()));
   frameCB.AmbientLight = mAmbientLight;
   for (int i = 0; i < NUM_LIGHTS; ++i) {
     frameCB.Lights[i].Strength = mDirLights[i].Strength;

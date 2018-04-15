@@ -66,10 +66,11 @@ XMMATRIX Camera::GetViewMatrix()const
 	float tU = -XMVectorGetX(XMVector3Dot(P, U));
 	float tL = -XMVectorGetX(XMVector3Dot(P, L));
 
-	return XMMATRIX(	Right.x,		Up.x,			Look.x,			0.0f,
-						Right.y,		Up.y,			Look.y,			0.0f,
-						Right.z,		Up.z,			Look.z,			0.0f,
-						tR,				tU,				tL,				ViewScale	);
+	return XMMATRIX(
+      Right.x,		Up.x,			Look.x,			0.0f,
+			Right.y,		Up.y,			Look.y,			0.0f,
+			Right.z,		Up.z,			Look.z,			0.0f,
+			tR,				  tU,				tL,				  ViewScale	);
 
 }
 
