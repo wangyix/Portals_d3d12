@@ -1,15 +1,16 @@
 #include "FrameResource.h"
 
-FrameResource::FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount)
+FrameResource::FrameResource(ID3D12Device* device, UINT clipPlanesCount, UINT passCount,
+    UINT objectCount, UINT materialCount)
+  : ObjectCB(device, objectCount, true),
+  PassCB(device, passCount, true),
+  ClipPlaneCB(device, clipPlanesCount, true),
+  FrameCB(device, 1, true),
+  MaterialBuffer(device, materialCount, false)
 {
   ThrowIfFailed(device->CreateCommandAllocator(
       D3D12_COMMAND_LIST_TYPE_DIRECT,
       IID_PPV_ARGS(CmdListAlloc.GetAddressOf())));
-
-  FrameCB = std::make_unique<UploadBuffer<FrameConstants>>(device, 1, true);
-  ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, objectCount, true);
-  PassCB = std::make_unique<UploadBuffer<PassConstants>>(device, passCount, true);
-  MaterialBuffer = std::make_unique<UploadBuffer<PhongMaterialData>>(device, materialCount, false);
 }
 
 FrameResource::~FrameResource()

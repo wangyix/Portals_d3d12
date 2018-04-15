@@ -49,14 +49,17 @@ cbuffer cbPass : register(b1) {
   float gViewScale;
 };
 
-cbuffer cbFrame : register(b2) {
-  float4x4 gPortalA;
-  float4x4 gPortalB;
+cbuffer cbClipPlane : register(b2) {
   float3 gClipPlanePosition;
-  float gFramePad0;
+  float gClipPlanePad0;
   float3 gClipPlaneNormal;
   float gClipPlaneOffset;
+}
+
+cbuffer cbFrame : register(b3) {
+  float4x4 gPortalA;
+  float4x4 gPortalB;
   float3 gAmbientLight;
-  float gFramePad1;
+  float gFramePad0;
   DirectionalLight gLights[NUM_LIGHTS];
 };

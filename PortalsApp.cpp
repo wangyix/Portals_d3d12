@@ -176,16 +176,17 @@ void PortalsApp::BuildRootSignature() {
   CD3DX12_DESCRIPTOR_RANGE texTable1;
   texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2, 0);
 
-  CD3DX12_ROOT_PARAMETER rootParameters[6];
+  CD3DX12_ROOT_PARAMETER rootParameters[7];
   // Order from most frequent to least frequent.
   rootParameters[0].InitAsConstantBufferView(0);      // cbPerObject
   rootParameters[1].InitAsConstantBufferView(1);      // cbPass
-  rootParameters[2].InitAsConstantBufferView(2);      // cbFrame
-  rootParameters[3].InitAsShaderResourceView(0, 1);   // gMaterialData
+  rootParameters[2].InitAsConstantBufferView(2);      // cbClipPlane
+  rootParameters[3].InitAsConstantBufferView(3);      // cbFrame
+  rootParameters[4].InitAsShaderResourceView(0, 1);   // gMaterialData
   // gPortalADiffuseMap, gPortalBDiffuseMap
-  rootParameters[4].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[5].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
   // gTextureMaps
-  rootParameters[5].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+  rootParameters[6].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
   const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
       0,                                  // shaderRegister
@@ -502,7 +503,7 @@ void PortalsApp::BuildRenderItems() {
 void PortalsApp::BuildFrameResources() {
   for (int i = 0; i < gNumFrameResources; ++i) {
     mFrameResources.push_back(std::make_unique<FrameResource>(
-        md3dDevice.Get(), /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
+        md3dDevice.Get(), /*clipPlanesCount=*/2, /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
         /*objectCount=*/4, /*materialCount=*/static_cast<UINT>(mMaterials.size())));
   }
 }
@@ -627,8 +628,7 @@ void PortalsApp::Update(float dt) {
   OnKeyboardInput(dt, modifyPortal);
   UpdateObjectCBs();
   UpdateMaterialBuffer();
-
-  UpdateFrameCB(&mPortalA);  // test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  UpdateFrameCB();
 }
 
 void PortalsApp::Draw(float dt) {
@@ -664,21 +664,21 @@ void PortalsApp::Draw(float dt) {
 
   // Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
   // set as a root descriptor.
-  ID3D12Resource* matBuffer = mCurrentFrameResource->MaterialBuffer->Resource();
-  mCommandList->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());
+  mCommandList->SetGraphicsRootShaderResourceView(
+      4, mCurrentFrameResource->MaterialBuffer.Resource()->GetGPUVirtualAddress());
 
   // Bind room and player textures to gTextureMaps[2].
   CD3DX12_GPU_DESCRIPTOR_HANDLE srvDescriptor(
       mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-  mCommandList->SetGraphicsRootDescriptorTable(5, srvDescriptor);
+  mCommandList->SetGraphicsRootDescriptorTable(6, srvDescriptor);
 
   // Bind portalA and portalB textures to gPortalADiffuseMap and gPortalBDiffuseMap.
   srvDescriptor.Offset(2, mCbvSrvUavDescriptorSize);
-  mCommandList->SetGraphicsRootDescriptorTable(4, srvDescriptor);
+  mCommandList->SetGraphicsRootDescriptorTable(5, srvDescriptor);
 
   // Bind per-frame constant buffer.
   mCommandList->SetGraphicsRootConstantBufferView(
-      2, mCurrentFrameResource->FrameCB->Resource()->GetGPUVirtualAddress()); 
+      3, mCurrentFrameResource->FrameCB.Resource()->GetGPUVirtualAddress()); 
 
 
 
@@ -696,7 +696,7 @@ void PortalsApp::Draw(float dt) {
   // Bind per-pass constant buffer.
   UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
   mCommandList->SetGraphicsRootConstantBufferView(
-    1, mCurrentFrameResource->PassCB->Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
+    1, mCurrentFrameResource->PassCB.Resource()->GetGPUVirtualAddress() + 0 * passCBByteSize);
 
   // Draw room and player
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
@@ -954,7 +954,6 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
 }
 
 void PortalsApp::UpdateObjectCBs() {
-  UploadBuffer<ObjectConstants>* currentObjectCB = mCurrentFrameResource->ObjectCB.get();
 #if QUAD == 0
   RenderItem* items[] = {
       &mRoomRenderItem, &mPlayerRenderItem, &mPortalBoxARenderItem, &mPortalBoxBRenderItem };
@@ -973,7 +972,7 @@ RenderItem* item = &mRoomRenderItem;   // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(item->TexTransform));
       objConstants.MaterialIndex = item->Mat->MatCBIndex;
 
-      currentObjectCB->CopyData(item->ObjCBIndex, objConstants);
+      mCurrentFrameResource->ObjectCB.CopyData(item->ObjCBIndex, objConstants);
 
       item->NumFramesDirty--;
     }
@@ -981,8 +980,6 @@ RenderItem* item = &mRoomRenderItem;   // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 void PortalsApp::UpdateMaterialBuffer() {
-  UploadBuffer<PhongMaterialData>* currentMaterialBuffer =
-      mCurrentFrameResource->MaterialBuffer.get();
   for (std::pair<const std::string, PhongMaterial>& e : mMaterials) {
     // Only update the cbuffer data if the constants have changed.  If the cbuffer
     // data changes, it needs to be updated for each FrameResource.
@@ -993,28 +990,33 @@ void PortalsApp::UpdateMaterialBuffer() {
       matData.Specular = mat->Specular;
       matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
 
-      currentMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+      mCurrentFrameResource->MaterialBuffer.CopyData(mat->MatCBIndex, matData);
 
       mat->NumFramesDirty--;
     }
   }
 }
 
-void PortalsApp::UpdateFrameCB(const Portal* clipPortal) {
+void PortalsApp::UpdateFrameCB() {
   FrameConstants frameCB;
   XMStoreFloat4x4(&frameCB.PortalA, XMMatrixTranspose(mPortalA.GetScaledPortalMatrix()));
   XMStoreFloat4x4(&frameCB.PortalB, XMMatrixTranspose(mPortalB.GetScaledPortalMatrix()));
-  frameCB.ClipPlanePosition = clipPortal->GetPosition();
-  frameCB.ClipPlaneNormal = clipPortal->GetNormal();
-  frameCB.ClipPlaneOffset = 0.0f;
   frameCB.AmbientLight = mAmbientLight;
   for (int i = 0; i < NUM_LIGHTS; ++i) {
     frameCB.Lights[i].Strength = mDirLights[i].Strength;
     frameCB.Lights[i].Direction = mDirLights[i].Direction;
   }
 
-  UploadBuffer<FrameConstants>* currentFrameCB = mCurrentFrameResource->FrameCB.get();
-  currentFrameCB->CopyData(0, frameCB);
+  mCurrentFrameResource->FrameCB.CopyData(0, frameCB);
+}
+
+void PortalsApp::UpdateClipPlaneCB(int index, const Portal* clipPortal) {
+  ClipPlaneConstants clipPlaneCB;
+  clipPlaneCB.ClipPlanePosition = clipPortal->GetPosition();
+  clipPlaneCB.ClipPlaneNormal = clipPortal->GetNormal();
+  clipPlaneCB.ClipPlaneOffset = 0.0f;
+
+  mCurrentFrameResource->ClipPlaneCB.CopyData(index, clipPlaneCB);
 }
 
 void PortalsApp::UpdatePassCB(
@@ -1024,20 +1026,18 @@ void PortalsApp::UpdatePassCB(
   passCB.EyePosW = eyePosW;
   passCB.ViewScale = viewScale;
 
-  UploadBuffer<PassConstants>* currentPassCB = mCurrentFrameResource->PassCB.get();
-  currentPassCB->CopyData(index, passCB);
+  mCurrentFrameResource->PassCB.CopyData(index, passCB);
 }
 
 void PortalsApp::DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* ri) {
-  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-  ID3D12Resource* objectCB = mCurrentFrameResource->ObjectCB->Resource();
-
   cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
   cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
   cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
+  UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
   D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-      objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+      mCurrentFrameResource->ObjectCB.Resource()->GetGPUVirtualAddress() +
+      ri->ObjCBIndex * objCBByteSize;
   cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
   cmdList->DrawIndexedInstanced(

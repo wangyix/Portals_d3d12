@@ -75,7 +75,8 @@ private:
   void OnKeyboardInput(float dt, bool modifyPortal);
   void UpdateObjectCBs();
   void UpdateMaterialBuffer();
-  void UpdateFrameCB(const Portal* clipPortal);
+  void UpdateFrameCB();
+  void UpdateClipPlaneCB(int index, const Portal* clipPortal);
   void UpdatePassCB(int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float viewScale);
 
   void DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* ri);

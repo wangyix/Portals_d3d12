@@ -16,11 +16,17 @@ struct ObjectConstants
   UINT     ObjPad2;
 };
 
-struct PassConstants
-{
+struct PassConstants {
   DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
   DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
   float ViewScale = 1.0f;
+};
+
+struct ClipPlaneConstants {
+  DirectX::XMFLOAT3 ClipPlanePosition = { 0.0f, 0.0f, 0.0f };
+  float ClipPlanePad0;
+  DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
+  float ClipPlaneOffset = 0.0f;
 };
 
 struct DirectionalLightData {
@@ -34,12 +40,8 @@ struct FrameConstants
 {
   DirectX::XMFLOAT4X4 PortalA = MathHelper::Identity4x4();
   DirectX::XMFLOAT4X4 PortalB = MathHelper::Identity4x4();
-  DirectX::XMFLOAT3 ClipPlanePosition = { 0.0f, 0.0f, 0.0f };
-  float PassPad0;
-  DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
-  float ClipPlaneOffset = 0.0f;
   DirectX::XMFLOAT3 AmbientLight = { 0.0f, 0.0f, 0.0f };
-  float PassPad1;
+  float FramePad0;
   DirectionalLightData Lights[NUM_LIGHTS];
 };
 
@@ -66,7 +68,9 @@ struct FrameResource
 {
 public:
 
-  FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
+  FrameResource(
+      ID3D12Device* device, UINT clipPlanesCount, UINT passCount, UINT objectCount,
+      UINT materialCount);
   FrameResource(const FrameResource& rhs) = delete;
   FrameResource& operator=(const FrameResource& rhs) = delete;
   ~FrameResource();
@@ -77,11 +81,12 @@ public:
 
   // We cannot update a cbuffer until the GPU is done processing the commands
   // that reference it.  So each frame needs their own cbuffers.
-  std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
-  std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-  std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
+  UploadBuffer<ObjectConstants> ObjectCB;
+  UploadBuffer<PassConstants> PassCB;
+  UploadBuffer<ClipPlaneConstants> ClipPlaneCB;
+  UploadBuffer<FrameConstants> FrameCB;
   
-  std::unique_ptr<UploadBuffer<PhongMaterialData>> MaterialBuffer = nullptr;
+  UploadBuffer<PhongMaterialData> MaterialBuffer;
 
   // Fence value to mark commands up to this fence point.  This lets us
   // check if these frame resources are still in use by the GPU.
