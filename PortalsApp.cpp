@@ -13,6 +13,11 @@ namespace {
   const UINT DT_TEXTURE_MAPS_ROOT_INDEX = 6;
   const UINT NUM_ROOT_PARAMETERS = 7;
 
+  const int DUMMY_CLIP_PLANE_CB_INDEX = 0;
+  const int PORTAL_A_CLIP_PLANE_CB_INDEX = 1;
+  const int PORTAL_B_CLIP_PLANE_CB_INDEX = 2;
+  const int NUM_CLIP_PLANE_CBS = 3;
+
   bool GetNextDataLine(std::ifstream* ifs, std::string* line) {
     line->clear();
     do {
@@ -280,21 +285,20 @@ void PortalsApp::BuildShadersAndInputLayout() {
       { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr } };
-  mShaders["portalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
-  mShaders["portalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
-  defines[1] = { "CLEAR_DEPTH", nullptr };
-  mShaders["portalBoxClearDepthVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
   defines[1] = { "CLIP_PLANE", nullptr };
+  mShaders["portalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
   mShaders["portalBoxClipPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
+  defines[1] = { "CLEAR_DEPTH", nullptr };
+  mShaders["portalBoxClearDepthVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");  
+  mShaders["portalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
 
   std::string portalTexRadRatioStr = std::to_string(PORTAL_TEX_RAD_RATIO);
   defines[1] = { "PORTAL_TEX_RAD_RATIO", portalTexRadRatioStr.c_str() };
+  defines[2] = { "CLIP_PLANE", nullptr };
   mShaders["defaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
-  mShaders["defaultPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
-  defines[2] = { "DRAW_PORTALS", nullptr };
+  mShaders["defaultClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
+  defines[3] = { "DRAW_PORTALS", nullptr };
   mShaders["defaultPortalsVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
-  mShaders["defaultPortalsPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
-  defines[3] = { "CLIP_PLANE", nullptr };
   mShaders["defaultPortalsClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
 
   mInputLayout = {
@@ -513,7 +517,7 @@ void PortalsApp::BuildRenderItems() {
 void PortalsApp::BuildFrameResources() {
   for (int i = 0; i < gNumFrameResources; ++i) {
     mFrameResources.push_back(std::make_unique<FrameResource>(
-        md3dDevice.Get(), /*clipPlanesCount=*/2, /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
+        md3dDevice.Get(), NUM_CLIP_PLANE_CBS, /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
         /*objectCount=*/4, /*materialCount=*/static_cast<UINT>(mMaterials.size())));
   }
 }
@@ -537,25 +541,19 @@ void PortalsApp::BuildPSOs() {
 
   // default PSO, for rendering room and player
   
-  // default PSO with no special settings.
+  // default PSO, pixels are clipped against a plane, and stencil test pass when equal to ref value.
   ID3DBlob* shader = mShaders["defaultVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
-  shader = mShaders["defaultPS"].Get();
+  shader = mShaders["defaultClipPS"].Get();
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-      &psoDesc, IID_PPV_ARGS(&mPSOs["default"])));
-
-  // default PSO with portal hole and textures rendered.
-  shader = mShaders["defaultPortalsVS"].Get();
-  psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
-  shader = mShaders["defaultPortalsPS"].Get();
-  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
-  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-      &psoDesc, IID_PPV_ARGS(&mPSOs["defaultPortals"])));
+      &psoDesc, IID_PPV_ARGS(&mPSOs["defaultClipStencilEqual"])));
   
-  // default PSO with pixels clipped against a plane and stencil test pass when equal to ref value.
+  // default PSO with portal hole and textures rendered,
+  // pixels are clipped against a plane, and stencil test pass when equal to ref value.
   shader = mShaders["defaultPortalsVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   shader = mShaders["defaultPortalsClipPS"].Get();
@@ -568,16 +566,18 @@ void PortalsApp::BuildPSOs() {
 
   // portalBox PSO, for rendering a box behind a portal hole to stencil.
   
-  // portalbox PSO that will write ref value to stencil.
+  // portalbox PSO with pixels clipped against a plane, stencil test pass when equal to ref value,
+  // and increments stencil values.
   shader = mShaders["portalBoxVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
-  shader = mShaders["portalBoxPS"].Get();
+  shader = mShaders["portalBoxClipPS"].Get();
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   psoDesc.DepthStencilState.StencilEnable = true;
-  psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilSet"])));
+      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualIncr"])));
 
   // portalbox PSO with stencil test pass when equal to ref value, disable depth test, and write
   // max depth value to depth buffer.
@@ -591,19 +591,6 @@ void PortalsApp::BuildPSOs() {
   psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualClearDepth"])));
-
-  // portalbox PSO with pixels clipped against a plane, stencil test pass when equal to ref value,
-  // and increments stencil values.
-  shader = mShaders["portalBoxVS"].Get();
-  psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
-  shader = mShaders["portalBoxClipPS"].Get();
-  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
-  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  psoDesc.DepthStencilState.StencilEnable = true;
-  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
-  psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
-  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualIncr"])));
 }
 
 void PortalsApp::OnResize() {
@@ -639,8 +626,11 @@ void PortalsApp::Update(float dt) {
   UpdateObjectCBs();
   UpdateMaterialBuffer();
   UpdateFrameCB();
-  UpdateClipPlaneCB(0, &mPortalA);
-  UpdateClipPlaneCB(1, &mPortalB);
+
+  XMFLOAT3 zero(0.0f, 0.0f, 0.0f);
+  UpdateClipPlaneCB(DUMMY_CLIP_PLANE_CB_INDEX, zero, zero, -1.0f);  // won't clip anything
+  UpdateClipPlaneCB(PORTAL_A_CLIP_PLANE_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal());
+  UpdateClipPlaneCB(PORTAL_B_CLIP_PLANE_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal());
 }
 
 void PortalsApp::Draw(float dt) {
@@ -652,7 +642,8 @@ void PortalsApp::Draw(float dt) {
 
   // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
   // Reusing the command list reuses memory.
-  ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["defaultPortals"].Get()));
+  ThrowIfFailed(
+      mCommandList->Reset(cmdListAlloc.Get(), mPSOs["defaultPortalsClipStencilEqual"].Get()));
 
   // Indicate a state transition on the resource usage.
   mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -713,7 +704,13 @@ void PortalsApp::Draw(float dt) {
       CB_PER_PASS_ROOT_INDEX,
       mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
 
-  // Draw room
+  // Draw room without clipping or stencil-rejecting anything (clip plane is set to dummy plane
+  // and stencil buffer is all 0s initially, so stencil test will always pass).
+  mCommandList->OMSetStencilRef(0);
+  mCommandList->SetGraphicsRootConstantBufferView(
+        CB_CLIP_PLANE_ROOT_INDEX,
+        mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+            DUMMY_CLIP_PLANE_CB_INDEX));
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
   // Rest of the rendering steps depends on whether or not the player intersects a portal
@@ -721,21 +718,24 @@ void PortalsApp::Draw(float dt) {
 
   } else {
     // Draw player
-    mCommandList->SetPipelineState(mPSOs["default"].Get());
+    mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
     DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
 
-    mCommandList->OMSetStencilRef(1);
-
-    // Render portal box A to stencil
-    mCommandList->SetPipelineState(mPSOs["portalBoxStencilSet"].Get());
+    // Render portal box A to increment stencil values inside portal hole
+    mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualIncr"].Get());
     DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+    
+    mCommandList->OMSetStencilRef(1);
+    
+    // Render portal box A again to clear depth values inside portal hole
     mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualClearDepth"].Get());
     DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
 
     // Bind clip-plane constant buffer to portal B clip plane values.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_CLIP_PLANE_ROOT_INDEX,
-        mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(1));
+        mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+            PORTAL_B_CLIP_PLANE_CB_INDEX));
 
 
     const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
@@ -756,6 +756,10 @@ void PortalsApp::Draw(float dt) {
     // Render room inside portal A
     mCommandList->SetPipelineState(mPSOs["defaultPortalsClipStencilEqual"].Get());
     DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
+
+    // Draw player
+    mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
   }
   
 
@@ -1054,11 +1058,12 @@ void PortalsApp::UpdateFrameCB() {
   mCurrentFrameResource->FrameCB.CopyData(0, frameCB);
 }
 
-void PortalsApp::UpdateClipPlaneCB(int index, const Portal* clipPortal) {
+void PortalsApp::UpdateClipPlaneCB(
+    int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset) {
   ClipPlaneConstants clipPlaneCB;
-  clipPlaneCB.ClipPlanePosition = clipPortal->GetPosition();
-  clipPlaneCB.ClipPlaneNormal = clipPortal->GetNormal();
-  clipPlaneCB.ClipPlaneOffset = 0.0f;
+  clipPlaneCB.ClipPlanePosition = position;
+  clipPlaneCB.ClipPlaneNormal = normal;
+  clipPlaneCB.ClipPlaneOffset = offset;
 
   mCurrentFrameResource->ClipPlaneCB.CopyData(index, clipPlaneCB);
 }

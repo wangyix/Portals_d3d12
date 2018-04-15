@@ -76,7 +76,8 @@ private:
   void UpdateObjectCBs();
   void UpdateMaterialBuffer();
   void UpdateFrameCB();
-  void UpdateClipPlaneCB(int index, const Portal* clipPortal);
+  void UpdateClipPlaneCB(
+      int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset = 0.0f);
   void UpdatePassCB(
       int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float distDilation);
 
