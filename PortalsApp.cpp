@@ -548,7 +548,7 @@ void PortalsApp::BuildPSOs() {
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   psoDesc.DepthStencilState.StencilEnable = true;
-  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["defaultClipStencilEqual"])));
   
@@ -560,7 +560,7 @@ void PortalsApp::BuildPSOs() {
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   psoDesc.DepthStencilState.StencilEnable = true;
-  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["defaultPortalsClipStencilEqual"])));
 
@@ -574,7 +574,7 @@ void PortalsApp::BuildPSOs() {
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   psoDesc.DepthStencilState.StencilEnable = true;
-  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
   psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_INCR;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualIncr"])));
@@ -588,7 +588,7 @@ void PortalsApp::BuildPSOs() {
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
   psoDesc.DepthStencilState.StencilEnable = true;
-  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilEqualClearDepth"])));
 }
@@ -715,7 +715,82 @@ void PortalsApp::Draw(float dt) {
 
   // Rest of the rendering steps depends on whether or not the player intersects a portal
   if (mPlayerIntersectPortalA || mPlayerIntersectPortalB) {
+    if (mPlayerIntersectPortalA) {
 
+       // Render portal box A to increment stencil values inside portal hole
+      mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualIncr"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+    
+      mCommandList->OMSetStencilRef(1);
+    
+      // Render portal box A again to clear depth values inside portal hole
+      mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualClearDepth"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+
+      // Bind clip-plane constant buffer to portal A clip plane values.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_CLIP_PLANE_ROOT_INDEX,
+          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+              PORTAL_A_CLIP_PLANE_CB_INDEX));
+
+      // Draw portion of player that's in this realm
+      mCommandList->OMSetStencilRef(0);
+      mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+      /*
+      const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
+      const XMMATRIX virtualizeAtoB = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
+      const float radiusAoverB = mPortalA.GetPhysicalRadius() / mPortalB.GetPhysicalRadius();
+
+      // Update per-pass constant buffer.
+      virtualViewProj = virtualizeBtoA * virtualViewProj;
+      virtualEyePosWH = XMVector4Transform(virtualEyePosWH, virtualizeAtoB);
+      virtualDistDilation *= radiusAoverB;
+      XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
+      UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualDistDilation);
+      // Bind per-pass constant buffer.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_PER_PASS_ROOT_INDEX,
+          mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(1));
+
+      // Bind clip-plane constant buffer to portal B clip plane values.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_CLIP_PLANE_ROOT_INDEX,
+          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+              PORTAL_B_CLIP_PLANE_CB_INDEX));
+
+      // Draw rest of player
+      //mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
+      //DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+      // Render room inside portal A
+      mCommandList->SetPipelineState(mPSOs["defaultPortalsClipStencilEqual"].Get());
+      DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
+
+      // Render portal box A to increment stencil value inside portal hole
+      mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualIncr"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+    
+      mCommandList->OMSetStencilRef(2);
+    
+      // Render portal box A again to clear depth values inside portal hole
+      mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualClearDepth"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+
+      // Bind clip-plane constant buffer to portal A clip plane values.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_CLIP_PLANE_ROOT_INDEX,
+          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+              PORTAL_A_CLIP_PLANE_CB_INDEX));
+
+      // Draw portion of player that's in this realm
+      mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+      */
+    } else {
+
+    }
   } else {
     // Draw player
     mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
@@ -760,6 +835,16 @@ void PortalsApp::Draw(float dt) {
     // Draw player
     mCommandList->SetPipelineState(mPSOs["defaultClipStencilEqual"].Get());
     DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+    // Render portal box A to increment stencil value inside portal hole
+    mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualIncr"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+    
+    mCommandList->OMSetStencilRef(2);
+    
+    // Render portal box A again to clear depth values inside portal hole
+    mCommandList->SetPipelineState(mPSOs["portalBoxStencilEqualClearDepth"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
   }
   
 
@@ -944,10 +1029,16 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
     dir = dir / dir_length;
     SpherePath::MoveCameraAlongPathIterative(
         *mCurrentCamera, dir, speed * dt, mRoom, mPortalA, mPortalB);
-    // Update player world matrix if this is the camera attached to the player.
+    // Update player world matrix and portal intersect flags if this is the camera attached to the
+    // player.
     if (mCurrentCamera->GetAttachedTo() == &mPlayer) {
       mPlayerRenderItem.World = mPlayer.GetWorldMatrix();
       mPlayerRenderItem.NumFramesDirty = gNumFrameResources;
+      
+      mPlayerIntersectPortalA = mPortalA.DiscIntersectSphere(
+          mPlayer.GetPosition(), mPlayer.GetBoundingSphereRadius() + 0.001f);
+      mPlayerIntersectPortalB = mPortalB.DiscIntersectSphere(
+          mPlayer.GetPosition(), mPlayer.GetBoundingSphereRadius() + 0.001f);
     }
   }
   
