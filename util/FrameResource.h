@@ -24,7 +24,7 @@ struct ClipPlaneConstants {
 };
 
 struct LightWorldConstants {
-  DirectX::XMFLOAT4X4 LightWorld = MathHelper::Identity4x4();
+  DirectX::XMFLOAT4X4 LightWorldInvTranspose = MathHelper::Identity4x4();
 };
 
 struct PassConstants {

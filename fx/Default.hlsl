@@ -32,13 +32,13 @@ struct VertexIn {
 };
 
 struct VertexOut {
-  float4 PosH    : SV_POSITION;
-  float3 PosW    : POSITION;
-  float3 NormalW : NORMAL;
-  float2 TexC     : TEXCOORD0;
+  float4 PosH         : SV_POSITION;
+  float3 PosW         : POSITION;
+  float3 NormalW      : NORMAL;
+  float2 TexC         : TEXCOORD0;
 #ifdef DRAW_PORTALS
-  float3 PosPA	: POSITION1;		// position in portalA space
-  float3 PosPB	: POSITION2;		// position in portalB space
+  float3 PosPA	      : POSITION1;		// position in portalA space
+  float3 PosPB	      : POSITION2;		// position in portalB space
 #endif
 };
 
@@ -48,7 +48,8 @@ VertexOut VS(VertexIn vin) {
   // Transform to world space.
   float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
   vout.PosW = posW.xyz;
-  vout.NormalW = mul(vin.NormalL, (float3x3)gWorldInvTranspose);  // normalize this?
+  float3 normalW = mul(vin.NormalL, (float3x3)gWorldInvTranspose);
+  vout.NormalW = mul(normalW, (float3x3)gLightWorldInvTranspose); // normalize this?
   
   // Transform to homogeneous clip space.
   vout.PosH = mul(posW, gViewProj);
@@ -86,7 +87,6 @@ float4 PS(VertexOut pin) : SV_TARGET {
 
   float3 result = gAmbientLight * diffuseAlbedo;
 
-  
   [unroll]
   for (int i = 0; i < NUM_LIGHTS; ++i) {
     result += ComputeDirectionalLight(

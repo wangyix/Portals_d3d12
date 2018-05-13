@@ -722,26 +722,19 @@ void PortalsApp::Draw(float dt) {
   // and stencil buffer is all 0s initially, so stencil test will always pass).
   mCommandList->OMSetStencilRef(0);
   mCommandList->SetGraphicsRootConstantBufferView(
-        CB_CLIP_PLANE_ROOT_INDEX,
-        mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-            DUMMY_CLIP_PLANE_CB_INDEX));
+      CB_CLIP_PLANE_ROOT_INDEX,
+      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+          DUMMY_CLIP_PLANE_CB_INDEX));
+  mCommandList->SetGraphicsRootConstantBufferView(
+      CB_LIGHT_WORLD_ROOT_INDEX,
+      mCurrentFrameResource->LightWorldCB.GetResourceGPUVirtualAddress(
+          IDENTITY_LIGHT_WORLD_CB_INDEX));
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
   // Rest of the rendering steps depends on whether or not the player intersects a portal
   if (mPlayerIntersectPortalA || mPlayerIntersectPortalB) {
     if (mPlayerIntersectPortalA) {
-      // Draw portion of player that's in this realm
-
-      // Bind clip-plane constant buffer to portal A clip plane values.
-      mCommandList->SetGraphicsRootConstantBufferView(
-          CB_CLIP_PLANE_ROOT_INDEX,
-          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-              PORTAL_A_CLIP_PLANE_CB_INDEX));
-      // Draw clipped player
-      mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
-      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
-
-       // Render portal box A to increment stencil values inside portal hole
+      // Render portal box A to increment stencil values inside portal hole
       mCommandList->SetPipelineState(mPSOs["portalBoxStencilIncr"].Get());
       DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
     
@@ -751,8 +744,42 @@ void PortalsApp::Draw(float dt) {
       mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
       DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
 
-      
-      
+      mCommandList->OMSetStencilRef(0);
+
+      // Draw portion of player that's in this realm
+      // Bind clip-plane constant buffer to portal A clip plane values.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_CLIP_PLANE_ROOT_INDEX,
+          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+              PORTAL_A_CLIP_PLANE_CB_INDEX));
+      // Draw clipped player
+      mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+      mCommandList->OMSetStencilRef(1);
+
+      // Draw rest of player (portion that's in next realm)
+      // Bind clip-plane constant buffer to portal B clip plane values.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_CLIP_PLANE_ROOT_INDEX,
+          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+              PORTAL_B_CLIP_PLANE_CB_INDEX));
+      // Bind lightworld constant buffer to portal A-to-B lightworld value.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_LIGHT_WORLD_ROOT_INDEX,
+          mCurrentFrameResource->LightWorldCB.GetResourceGPUVirtualAddress(
+              PORTAL_A_TO_B_LIGHT_WORLD_CB_INDEX));
+      // Draw clipped player
+      mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+      // Restore identity lightworld matrix
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_LIGHT_WORLD_ROOT_INDEX,
+          mCurrentFrameResource->LightWorldCB.GetResourceGPUVirtualAddress(
+              IDENTITY_LIGHT_WORLD_CB_INDEX));
+
+
+ // TODO: precompute these every frame     
       const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
       const XMMATRIX virtualizeAtoB = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
       const float radiusAoverB = mPortalA.GetPhysicalRadius() / mPortalB.GetPhysicalRadius();
@@ -768,15 +795,7 @@ void PortalsApp::Draw(float dt) {
           CB_PER_PASS_ROOT_INDEX,
           mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(1));
 
-      // Bind clip-plane constant buffer to portal B clip plane values.
-      mCommandList->SetGraphicsRootConstantBufferView(
-          CB_CLIP_PLANE_ROOT_INDEX,
-          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-              PORTAL_B_CLIP_PLANE_CB_INDEX));
-
-      // Draw rest of player
-      //mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
-      //DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+      
       
       // Render room inside portal A
       mCommandList->SetPipelineState(mPSOs["defaultPortalsClip"].Get());
@@ -1162,7 +1181,8 @@ void PortalsApp::UpdateClipPlaneCB(
 
 void PortalsApp::UpdateLightWorldCB(int index, const XMMATRIX& lightWorld) {
   LightWorldConstants lightWorldCB;
-  XMStoreFloat4x4(&lightWorldCB.LightWorld, XMMatrixTranspose(lightWorld));
+  XMStoreFloat4x4(&lightWorldCB.LightWorldInvTranspose, XMMatrixTranspose(
+      MathHelper::InverseTranspose(lightWorld)));
 
   mCurrentFrameResource->LightWorldCB.CopyData(index, lightWorldCB);
 }
