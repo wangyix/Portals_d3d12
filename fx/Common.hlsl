@@ -50,8 +50,9 @@ cbuffer cbClipPlane : register(b1) {
   float gClipPlaneOffset;
 }
 
-cbuffer cbLightWorld : register(b2) {
-  float4x4 gLightWorldInvTranspose;
+cbuffer cbWorld2 : register(b2) {
+  float4x4 gWorld2;
+  float4x4 gWorld2InvTranspose;
 }
 
 cbuffer cbPass : register(b3) {

@@ -47,9 +47,12 @@ VertexOut VS(VertexIn vin) {
   
   // Transform to world space.
   float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
-  vout.PosW = posW.xyz;
-  float3 normalW = mul(vin.NormalL, (float3x3)gWorldInvTranspose);
-  vout.NormalW = mul(normalW, (float3x3)gLightWorldInvTranspose); // normalize this?
+  vout.NormalW = mul(vin.NormalL, (float3x3)gWorldInvTranspose);
+  // Modify world-space position and normal and world2 transformation.
+  posW = mul(posW, gWorld2);
+  vout.NormalW = mul(vout.NormalW, (float3x3)gWorld2InvTranspose); // normalize this?
+
+  vout.PosW = posW.xyz;  
   
   // Transform to homogeneous clip space.
   vout.PosH = mul(posW, gViewProj);

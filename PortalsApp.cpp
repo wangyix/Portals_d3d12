@@ -6,7 +6,7 @@
 namespace {
   const UINT CB_PER_OBJECT_ROOT_INDEX = 0;
   const UINT CB_CLIP_PLANE_ROOT_INDEX = 1;
-  const UINT CB_LIGHT_WORLD_ROOT_INDEX = 2;
+  const UINT CB_WORLD2_ROOT_INDEX = 2;
   const UINT CB_PER_PASS_ROOT_INDEX = 3;
   const UINT CB_PER_FRAME_ROOT_INDEX = 4;
   const UINT SRV_MATERIAL_DATA_ROOT_INDEX = 5;
@@ -14,15 +14,15 @@ namespace {
   const UINT DT_TEXTURE_MAPS_ROOT_INDEX = 7;
   const UINT NUM_ROOT_PARAMETERS = 8;
 
-  const int DUMMY_CLIP_PLANE_CB_INDEX = 0;
-  const int PORTAL_A_CLIP_PLANE_CB_INDEX = 1;
-  const int PORTAL_B_CLIP_PLANE_CB_INDEX = 2;
+  const int CLIP_PLANE_DUMMY_CB_INDEX = 0;
+  const int CLIP_PLANE_PORTAL_A_CB_INDEX = 1;
+  const int CLIP_PLANE_PORTAL_B_CB_INDEX = 2;
   const int NUM_CLIP_PLANE_CBS = 3;
 
-  const int IDENTITY_LIGHT_WORLD_CB_INDEX = 0;
-  const int PORTAL_A_TO_B_LIGHT_WORLD_CB_INDEX = 1;
-  const int PORTAL_B_TO_A_LIGHT_WORLD_CB_INDEX = 2;
-  const int NUM_LIGHT_WORLD_CBS = 3;
+  const int WORLD2_IDENTITY_CB_INDEX = 0;
+  const int WORLD2_PORTAL_A_TO_B_CB_INDEX = 1;
+  const int WORLD2_PORTAL_B_TO_A_CB_INDEX = 2;
+  const int NUM_WORLD2_CBS = 3;
 
   bool GetNextDataLine(std::ifstream* ifs, std::string* line) {
     line->clear();
@@ -199,7 +199,7 @@ void PortalsApp::BuildRootSignature() {
   // Order from most frequent to least frequent.
   rootParameters[CB_PER_OBJECT_ROOT_INDEX].InitAsConstantBufferView(0);   // cbPerObject
   rootParameters[CB_CLIP_PLANE_ROOT_INDEX].InitAsConstantBufferView(1);   // cbClipPlane
-  rootParameters[CB_LIGHT_WORLD_ROOT_INDEX].InitAsConstantBufferView(2);  // cbLightWorld
+  rootParameters[CB_WORLD2_ROOT_INDEX].InitAsConstantBufferView(2);  // cbWorld2
   rootParameters[CB_PER_PASS_ROOT_INDEX].InitAsConstantBufferView(3);     // cbPass
   rootParameters[CB_PER_FRAME_ROOT_INDEX].InitAsConstantBufferView(4);    // cbFrame
   rootParameters[SRV_MATERIAL_DATA_ROOT_INDEX].InitAsShaderResourceView(0, 1);   // gMaterialData
@@ -524,7 +524,7 @@ void PortalsApp::BuildRenderItems() {
 void PortalsApp::BuildFrameResources() {
   for (int i = 0; i < gNumFrameResources; ++i) {
     mFrameResources.push_back(std::make_unique<FrameResource>(
-        md3dDevice.Get(), /*objectCount=*/4, NUM_CLIP_PLANE_CBS, NUM_LIGHT_WORLD_CBS,
+        md3dDevice.Get(), /*objectCount=*/4, NUM_CLIP_PLANE_CBS, NUM_WORLD2_CBS,
         /*passCount=*/1 + 2 * PORTAL_ITERATIONS,
         /*materialCount=*/static_cast<UINT>(mMaterials.size())));
   }
@@ -636,15 +636,15 @@ void PortalsApp::Update(float dt) {
   UpdateFrameCB();
 
   XMFLOAT3 zero(0.0f, 0.0f, 0.0f);
-  UpdateClipPlaneCB(DUMMY_CLIP_PLANE_CB_INDEX, zero, zero, -1.0f);  // won't clip anything
-  UpdateClipPlaneCB(PORTAL_A_CLIP_PLANE_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal());
-  UpdateClipPlaneCB(PORTAL_B_CLIP_PLANE_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal());
+  UpdateClipPlaneCB(CLIP_PLANE_DUMMY_CB_INDEX, zero, zero, -1.0f);  // won't clip anything
+  UpdateClipPlaneCB(CLIP_PLANE_PORTAL_A_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal());
+  UpdateClipPlaneCB(CLIP_PLANE_PORTAL_B_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal());
 
-  UpdateLightWorldCB(IDENTITY_LIGHT_WORLD_CB_INDEX, XMMatrixIdentity());
-  UpdateLightWorldCB(
-    PORTAL_A_TO_B_LIGHT_WORLD_CB_INDEX, Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB));
-  UpdateLightWorldCB(
-    PORTAL_B_TO_A_LIGHT_WORLD_CB_INDEX, Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA));
+  UpdateWorld2CB(WORLD2_IDENTITY_CB_INDEX, XMMatrixIdentity());
+  UpdateWorld2CB(
+    WORLD2_PORTAL_A_TO_B_CB_INDEX, Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB));
+  UpdateWorld2CB(
+    WORLD2_PORTAL_B_TO_A_CB_INDEX, Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA));
 }
 
 void PortalsApp::Draw(float dt) {
@@ -724,11 +724,11 @@ void PortalsApp::Draw(float dt) {
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
       mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-          DUMMY_CLIP_PLANE_CB_INDEX));
+          CLIP_PLANE_DUMMY_CB_INDEX));
   mCommandList->SetGraphicsRootConstantBufferView(
-      CB_LIGHT_WORLD_ROOT_INDEX,
-      mCurrentFrameResource->LightWorldCB.GetResourceGPUVirtualAddress(
-          IDENTITY_LIGHT_WORLD_CB_INDEX));
+      CB_WORLD2_ROOT_INDEX,
+      mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
+          WORLD2_IDENTITY_CB_INDEX));
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
   // Rest of the rendering steps depends on whether or not the player intersects a portal
@@ -751,33 +751,18 @@ void PortalsApp::Draw(float dt) {
       mCommandList->SetGraphicsRootConstantBufferView(
           CB_CLIP_PLANE_ROOT_INDEX,
           mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-              PORTAL_A_CLIP_PLANE_CB_INDEX));
+              CLIP_PLANE_PORTAL_A_CB_INDEX));
       // Draw clipped player
       mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
       DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
 
       mCommandList->OMSetStencilRef(1);
 
-      // Draw rest of player (portion that's in next realm)
       // Bind clip-plane constant buffer to portal B clip plane values.
       mCommandList->SetGraphicsRootConstantBufferView(
           CB_CLIP_PLANE_ROOT_INDEX,
           mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-              PORTAL_B_CLIP_PLANE_CB_INDEX));
-      // Bind lightworld constant buffer to portal A-to-B lightworld value.
-      mCommandList->SetGraphicsRootConstantBufferView(
-          CB_LIGHT_WORLD_ROOT_INDEX,
-          mCurrentFrameResource->LightWorldCB.GetResourceGPUVirtualAddress(
-              PORTAL_A_TO_B_LIGHT_WORLD_CB_INDEX));
-      // Draw clipped player
-      mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
-      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
-      // Restore identity lightworld matrix
-      mCommandList->SetGraphicsRootConstantBufferView(
-          CB_LIGHT_WORLD_ROOT_INDEX,
-          mCurrentFrameResource->LightWorldCB.GetResourceGPUVirtualAddress(
-              IDENTITY_LIGHT_WORLD_CB_INDEX));
-
+              CLIP_PLANE_PORTAL_B_CB_INDEX));
 
  // TODO: precompute these every frame     
       const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
@@ -795,7 +780,13 @@ void PortalsApp::Draw(float dt) {
           CB_PER_PASS_ROOT_INDEX,
           mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(1));
 
-      
+      // Draw rest of player from previous realm
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_WORLD2_ROOT_INDEX,
+          mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
+              WORLD2_PORTAL_A_TO_B_CB_INDEX));
+      mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
       
       // Render room inside portal A
       mCommandList->SetPipelineState(mPSOs["defaultPortalsClip"].Get());
@@ -815,7 +806,7 @@ void PortalsApp::Draw(float dt) {
       mCommandList->SetGraphicsRootConstantBufferView(
           CB_CLIP_PLANE_ROOT_INDEX,
           mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-              PORTAL_A_CLIP_PLANE_CB_INDEX));
+              CLIP_PLANE_PORTAL_A_CB_INDEX));
 
       // Draw portion of player that's in this realm
       mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
@@ -843,7 +834,7 @@ void PortalsApp::Draw(float dt) {
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_CLIP_PLANE_ROOT_INDEX,
         mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-            PORTAL_B_CLIP_PLANE_CB_INDEX));
+            CLIP_PLANE_PORTAL_B_CB_INDEX));
 
 
     const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
@@ -1179,12 +1170,13 @@ void PortalsApp::UpdateClipPlaneCB(
   mCurrentFrameResource->ClipPlaneCB.CopyData(index, clipPlaneCB);
 }
 
-void PortalsApp::UpdateLightWorldCB(int index, const XMMATRIX& lightWorld) {
-  LightWorldConstants lightWorldCB;
-  XMStoreFloat4x4(&lightWorldCB.LightWorldInvTranspose, XMMatrixTranspose(
-      MathHelper::InverseTranspose(lightWorld)));
+void PortalsApp::UpdateWorld2CB(int index, const XMMATRIX& world2) {
+  World2Constants world2CB;
+  XMStoreFloat4x4(&world2CB.World2, XMMatrixTranspose(world2));
+  XMStoreFloat4x4(&world2CB.World2InvTranspose, XMMatrixTranspose(
+      MathHelper::InverseTranspose(world2)));
 
-  mCurrentFrameResource->LightWorldCB.CopyData(index, lightWorldCB);
+  mCurrentFrameResource->World2CB.CopyData(index, world2CB);
 }
 
 void PortalsApp::UpdatePassCB(

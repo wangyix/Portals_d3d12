@@ -4,7 +4,7 @@ FrameResource::FrameResource(ID3D12Device* device, UINT objectCount, UINT clipPl
     UINT lightWorldCount, UINT passCount, UINT materialCount)
   : ObjectCB(device, objectCount, true),
   ClipPlaneCB(device, clipPlaneCount, true),
-  LightWorldCB(device, lightWorldCount, true),
+  World2CB(device, lightWorldCount, true),
   PassCB(device, passCount, true),
   FrameCB(device, 1, true),
   MaterialBuffer(device, materialCount, false)

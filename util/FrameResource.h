@@ -23,8 +23,9 @@ struct ClipPlaneConstants {
   float ClipPlaneOffset = 0.0f;
 };
 
-struct LightWorldConstants {
-  DirectX::XMFLOAT4X4 LightWorldInvTranspose = MathHelper::Identity4x4();
+struct World2Constants {
+  DirectX::XMFLOAT4X4 World2 = MathHelper::Identity4x4();
+  DirectX::XMFLOAT4X4 World2InvTranspose = MathHelper::Identity4x4();
 };
 
 struct PassConstants {
@@ -87,7 +88,7 @@ public:
   // that reference it.  So each frame needs their own cbuffers.
   UploadBuffer<ObjectConstants> ObjectCB;
   UploadBuffer<ClipPlaneConstants> ClipPlaneCB;
-  UploadBuffer<LightWorldConstants> LightWorldCB;
+  UploadBuffer<World2Constants> World2CB;
   UploadBuffer<PassConstants> PassCB;
   UploadBuffer<FrameConstants> FrameCB;
   
