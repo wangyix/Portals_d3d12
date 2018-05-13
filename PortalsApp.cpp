@@ -702,17 +702,56 @@ void PortalsApp::Draw(float dt) {
 
 
 
-  // Update per-pass constant buffer.
-  XMMATRIX virtualViewProj = mLeftCamera.GetViewMatrix() * mLeftCamera.GetProjMatrix();
-  XMFLOAT3 virtualEyePosW = mLeftCamera.GetPosition();
-  XMVECTOR virtualEyePosWH =
-      XMVectorSet(virtualEyePosW.x, virtualEyePosW.y, virtualEyePosW.z, 1.0f);
-  float virtualDistDilation = 1.0f / mLeftCamera.GetViewScale();
+
+
+
+
+  const UINT portalAIterations = 3;
+  const UINT portalBIterations = 3;
+
+  // Compute per-pass constant buffer values for all iterations.
+
+  const XMMATRIX viewProj = mLeftCamera.GetViewMatrix() * mLeftCamera.GetProjMatrix();
+  const XMFLOAT3 eyePosW = mLeftCamera.GetPosition();
+  const float distDilation = 1.0f / mLeftCamera.GetViewScale();
+  const float radiusAoverB = mPortalA.GetPhysicalRadius() / mPortalB.GetPhysicalRadius();
+
 #if QUAD == 0
-  UpdatePassCB(0, virtualViewProj, virtualEyePosW, virtualDistDilation);
+  UpdatePassCB(0, viewProj, eyePosW, distDilation);
 #else
   UpdatePassCB(0, XMMatrixScaling(0.5f, 1.0f, 1.0f)*XMMatrixTranslation(0.2f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -2.0f), 0.5f);  // TEST!!!!!!!!!!!!!!!!!!
 #endif
+
+  const UINT portalACBIndexBase = 1;
+  const UINT portalBCBIndexBase = portalACBIndexBase + portalAIterations;
+  // Compute per-pass constant buffer values for rendering inside portal A.
+  XMMATRIX virtualViewProj = viewProj;
+  XMVECTOR virtualEyePosWH = XMVectorSet(eyePosW.x, eyePosW.y, eyePosW.z, 1.0f);
+  float virtualDistDilation = distDilation;
+  for (UINT i = portalACBIndexBase; i < portalACBIndexBase + portalAIterations; ++i) {
+    virtualViewProj = mPortalBToA * virtualViewProj;
+    virtualEyePosWH = XMVector4Transform(virtualEyePosWH, mPortalAToB);
+    virtualDistDilation *= radiusAoverB;
+
+    XMFLOAT3 virtualEyePosW;
+    DirectX::XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
+    UpdatePassCB(i, virtualViewProj, virtualEyePosW, virtualDistDilation);
+  }
+  // Compute per-pass constant buffer values for rendering inside portal B.
+  virtualViewProj = viewProj;
+  virtualEyePosWH = XMVectorSet(eyePosW.x, eyePosW.y, eyePosW.z, 1.0f);
+  virtualDistDilation = distDilation;
+  for (UINT i = portalBCBIndexBase; i < portalBCBIndexBase + portalBIterations; ++i) {
+    virtualViewProj = mPortalAToB * virtualViewProj;
+    virtualEyePosWH = XMVector4Transform(virtualEyePosWH, mPortalBToA);
+    virtualDistDilation /= radiusAoverB;
+
+    XMFLOAT3 virtualEyePosW;
+    DirectX::XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
+    UpdatePassCB(i, virtualViewProj, virtualEyePosW, virtualDistDilation);
+  }
+
+
   // Bind per-pass constant buffer.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_PER_PASS_ROOT_INDEX,
@@ -731,6 +770,145 @@ void PortalsApp::Draw(float dt) {
           WORLD2_IDENTITY_CB_INDEX));
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
+  // Draw player
+  if (mPlayerIntersectPortalA) {
+
+  } else if (mPlayerIntersectPortalB) {
+  } else {
+    mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+  }
+
+  // Draw rooms inside portal A
+  UINT stencilRef = 1;
+  int passCBIndex = portalACBIndexBase;
+  for (int i = 0; i < portalAIterations; ++i, ++stencilRef, ++passCBIndex) {
+    // Draw portal box to increment stencil values inside portal hole.
+    mCommandList->SetPipelineState(mPSOs["portalBoxStencilIncr"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+    
+    mCommandList->OMSetStencilRef(stencilRef);
+
+    // Draw portal box again to clear depth values inside portal hole.
+    mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+
+    // Set clip-plane constant buffer to be this portal's clip plane values.
+    if (i == 0) {
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_CLIP_PLANE_ROOT_INDEX,
+          mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+              CLIP_PLANE_PORTAL_B_CB_INDEX));
+    }
+
+    // Bind per-pass constant buffer.
+    mCommandList->SetGraphicsRootConstantBufferView(
+        CB_PER_PASS_ROOT_INDEX,
+        mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
+
+    // Draw room
+    mCommandList->SetPipelineState(mPSOs["defaultPortalsClip"].Get());
+    DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
+  }
+
+  // Draw players inside portal A
+  if (mPlayerIntersectPortalA) {
+    // Draw minority portions of players inside the portal.
+    // Clip plane should already be set to portal B
+    mCommandList->SetGraphicsRootConstantBufferView(
+          CB_WORLD2_ROOT_INDEX,
+          mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
+              WORLD2_PORTAL_A_TO_B_CB_INDEX));
+    stencilRef = 1;
+    passCBIndex = portalACBIndexBase;
+    for (int i = 0; i < portalAIterations; ++i, ++stencilRef, ++passCBIndex) {
+      mCommandList->OMSetStencilRef(stencilRef);
+
+      // Bind per-pass constant buffer.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_PER_PASS_ROOT_INDEX,
+          mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
+
+      // Draw player
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+    }
+    mCommandList->SetGraphicsRootConstantBufferView(
+        CB_WORLD2_ROOT_INDEX,
+        mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
+            WORLD2_IDENTITY_CB_INDEX));
+
+    // Draw majority portion of player
+    
+    // Set clip plane to portal A
+    mCommandList->SetGraphicsRootConstantBufferView(
+        CB_CLIP_PLANE_ROOT_INDEX,
+        mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
+            CLIP_PLANE_PORTAL_A_CB_INDEX));
+
+    mCommandList->OMSetStencilRef(0);
+
+    // Bind per-pass constant buffer.
+    mCommandList->SetGraphicsRootConstantBufferView(
+        CB_PER_PASS_ROOT_INDEX,
+        mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
+
+    mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+    // Draw majority portions of players inside the portal.
+    stencilRef = 1;
+    passCBIndex = portalACBIndexBase;
+    for (int i = 0; i < portalAIterations; ++i, ++stencilRef, ++passCBIndex) {
+      mCommandList->OMSetStencilRef(stencilRef);
+
+      // Bind per-pass constant buffer.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_PER_PASS_ROOT_INDEX,
+          mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
+
+      // Draw player
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+    }
+    
+  } else if (mPlayerIntersectPortalB) {
+    // Draw majority portions of players inside the portal.
+    // Clip plane should already be set to portal B
+    stencilRef = 1;
+    passCBIndex = portalACBIndexBase;
+    for (int i = 0; i < portalAIterations; ++i, ++stencilRef, ++passCBIndex) {
+      mCommandList->OMSetStencilRef(stencilRef);
+
+      // Bind per-pass constant buffer.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_PER_PASS_ROOT_INDEX,
+          mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
+
+      // Draw player
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+    }
+
+
+
+
+  } else {
+    mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+    // Clip plane constant buffer values are already set correctly.
+    stencilRef = 1;
+    passCBIndex = portalACBIndexBase;
+    for (int i = 0; i < portalAIterations; ++i, ++stencilRef, ++passCBIndex) {
+      mCommandList->OMSetStencilRef(stencilRef);
+
+      // Bind per-pass constant buffer.
+      mCommandList->SetGraphicsRootConstantBufferView(
+          CB_PER_PASS_ROOT_INDEX,
+          mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
+
+      // Draw player
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+    }
+  }
+
+#if 0
   // Rest of the rendering steps depends on whether or not the player intersects a portal
   if (mPlayerIntersectPortalA || mPlayerIntersectPortalB) {
     if (mPlayerIntersectPortalA) {
@@ -866,7 +1044,7 @@ void PortalsApp::Draw(float dt) {
     DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
   }
   
-
+#endif
 
   // Indicate a state transition on the resource usage.
   mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
