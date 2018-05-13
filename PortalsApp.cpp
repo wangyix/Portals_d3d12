@@ -149,6 +149,8 @@ bool PortalsApp::Initialize() {
   
   ReadRoomFile("room.txt");
   mRightCamera.AttachToObject(&mPlayer);  // Updates mRightCamera's position, orientation
+  mPortalAToB = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
+  mPortalBToA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
 
   LoadTexture("portalA", L"textures/orange_portal2.dds");
   LoadTexture("portalB", L"textures/blue_portal2.dds");
@@ -641,10 +643,8 @@ void PortalsApp::Update(float dt) {
   UpdateClipPlaneCB(CLIP_PLANE_PORTAL_B_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal());
 
   UpdateWorld2CB(WORLD2_IDENTITY_CB_INDEX, XMMatrixIdentity());
-  UpdateWorld2CB(
-    WORLD2_PORTAL_A_TO_B_CB_INDEX, Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB));
-  UpdateWorld2CB(
-    WORLD2_PORTAL_B_TO_A_CB_INDEX, Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA));
+  UpdateWorld2CB(WORLD2_PORTAL_A_TO_B_CB_INDEX, mPortalAToB);
+  UpdateWorld2CB(WORLD2_PORTAL_B_TO_A_CB_INDEX, mPortalBToA);
 }
 
 void PortalsApp::Draw(float dt) {
@@ -765,13 +765,11 @@ void PortalsApp::Draw(float dt) {
               CLIP_PLANE_PORTAL_B_CB_INDEX));
 
  // TODO: precompute these every frame     
-      const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
-      const XMMATRIX virtualizeAtoB = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
       const float radiusAoverB = mPortalA.GetPhysicalRadius() / mPortalB.GetPhysicalRadius();
 
       // Update per-pass constant buffer.
-      virtualViewProj = virtualizeBtoA * virtualViewProj;
-      virtualEyePosWH = XMVector4Transform(virtualEyePosWH, virtualizeAtoB);
+      virtualViewProj = mPortalBToA * virtualViewProj;
+      virtualEyePosWH = XMVector4Transform(virtualEyePosWH, mPortalAToB);
       virtualDistDilation *= radiusAoverB;
       XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
       UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualDistDilation);
@@ -836,14 +834,11 @@ void PortalsApp::Draw(float dt) {
         mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
             CLIP_PLANE_PORTAL_B_CB_INDEX));
 
-
-    const XMMATRIX virtualizeBtoA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
-    const XMMATRIX virtualizeAtoB = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
     const float radiusAoverB = mPortalA.GetPhysicalRadius() / mPortalB.GetPhysicalRadius();
 
     // Update per-pass constant buffer.
-    virtualViewProj = virtualizeBtoA * virtualViewProj;
-    virtualEyePosWH = XMVector4Transform(virtualEyePosWH, virtualizeAtoB);
+    virtualViewProj = mPortalBToA * virtualViewProj;
+    virtualEyePosWH = XMVector4Transform(virtualEyePosWH, mPortalAToB);
     virtualDistDilation *= radiusAoverB;
     XMStoreFloat3(&virtualEyePosW, virtualEyePosWH);
     UpdatePassCB(1, virtualViewProj, virtualEyePosW, virtualDistDilation);
@@ -1113,6 +1108,9 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
     // Update portal box world matrix
     mCurrentPortalBoxRenderItem->World = mCurrentPortal->GetXYScaledPortalToWorldMatrix();
     mCurrentPortalBoxRenderItem->NumFramesDirty = gNumFrameResources;
+    // Update portal A-to_B and B-to-A matrices.
+    mPortalAToB = Portal::CalculateVirtualizationMatrix(mPortalA, mPortalB);
+    mPortalBToA = Portal::CalculateVirtualizationMatrix(mPortalB, mPortalA);
   }
 }
 

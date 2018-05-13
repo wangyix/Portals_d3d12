@@ -110,6 +110,8 @@ private:
   Portal* mOtherPortal;
   bool mPlayerIntersectPortalA;
   bool mPlayerIntersectPortalB;
+  XMMATRIX mPortalAToB;
+  XMMATRIX mPortalBToA;
 
   // Player
   FirstPersonObject mPlayer;
