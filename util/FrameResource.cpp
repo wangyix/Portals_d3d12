@@ -1,10 +1,11 @@
 #include "FrameResource.h"
 
-FrameResource::FrameResource(ID3D12Device* device, UINT clipPlanesCount, UINT passCount,
-    UINT objectCount, UINT materialCount)
+FrameResource::FrameResource(ID3D12Device* device, UINT objectCount, UINT clipPlaneCount,
+    UINT lightWorldCount, UINT passCount, UINT materialCount)
   : ObjectCB(device, objectCount, true),
+  ClipPlaneCB(device, clipPlaneCount, true),
+  LightWorldCB(device, lightWorldCount, true),
   PassCB(device, passCount, true),
-  ClipPlaneCB(device, clipPlanesCount, true),
   FrameCB(device, 1, true),
   MaterialBuffer(device, materialCount, false)
 {

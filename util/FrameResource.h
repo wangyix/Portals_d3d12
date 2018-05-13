@@ -16,17 +16,21 @@ struct ObjectConstants
   UINT     ObjPad2;
 };
 
-struct PassConstants {
-  DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
-  DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
-  float DistDilation = 1.0f;
-};
-
 struct ClipPlaneConstants {
   DirectX::XMFLOAT3 ClipPlanePosition = { 0.0f, 0.0f, 0.0f };
   float ClipPlanePad0;
   DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
   float ClipPlaneOffset = 0.0f;
+};
+
+struct LightWorldConstants {
+  DirectX::XMFLOAT4X4 LightWorld = MathHelper::Identity4x4();
+};
+
+struct PassConstants {
+  DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
+  DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
+  float DistDilation = 1.0f;
 };
 
 struct DirectionalLightData {
@@ -69,8 +73,8 @@ struct FrameResource
 public:
 
   FrameResource(
-      ID3D12Device* device, UINT clipPlanesCount, UINT passCount, UINT objectCount,
-      UINT materialCount);
+      ID3D12Device* device, UINT objectCount, UINT clipPlaneCount, UINT lightWorldCount,
+      UINT passCount, UINT materialCount);
   FrameResource(const FrameResource& rhs) = delete;
   FrameResource& operator=(const FrameResource& rhs) = delete;
   ~FrameResource();
@@ -82,8 +86,9 @@ public:
   // We cannot update a cbuffer until the GPU is done processing the commands
   // that reference it.  So each frame needs their own cbuffers.
   UploadBuffer<ObjectConstants> ObjectCB;
-  UploadBuffer<PassConstants> PassCB;
   UploadBuffer<ClipPlaneConstants> ClipPlaneCB;
+  UploadBuffer<LightWorldConstants> LightWorldCB;
+  UploadBuffer<PassConstants> PassCB;
   UploadBuffer<FrameConstants> FrameCB;
   
   UploadBuffer<PhongMaterialData> MaterialBuffer;

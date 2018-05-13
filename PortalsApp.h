@@ -73,13 +73,14 @@ private:
   void ReadRoomFile(const std::string& path);
   
   void OnKeyboardInput(float dt, bool modifyPortal);
-  void UpdateObjectCBs();
   void UpdateMaterialBuffer();
-  void UpdateFrameCB();
+  void UpdateObjectCBs();
   void UpdateClipPlaneCB(
       int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset = 0.0f);
+  void UpdateLightWorldCB(int index, const XMMATRIX& lightWorld);
   void UpdatePassCB(
       int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float distDilation);
+  void UpdateFrameCB();
 
   void DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* ri);
 

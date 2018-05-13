@@ -554,11 +554,11 @@ XMMATRIX Portal::GetXYScaledWorldToPortalMatrix()const
 
 // calculates transform to take a point from its current location to its virtual
 // location when looking at it through a portal
-XMMATRIX Portal::CalculateVirtualizationMatrix(const Portal &LookThru, const Portal &Other)
+XMMATRIX Portal::CalculateVirtualizationMatrix(const Portal &From, const Portal &To)
 {
-  float s = LookThru.PhysicalRadius / Other.PhysicalRadius;
-  return Other.GetWorldToPortalMatrix() * XMMatrixScaling(-s, s, -s) *
-      LookThru.GetPortalToWorldMatrix();
+  float s = To.PhysicalRadius / From.PhysicalRadius;
+  return From.GetWorldToPortalMatrix() * XMMatrixScaling(-s, s, -s) *
+      To.GetPortalToWorldMatrix();
 }
 
 

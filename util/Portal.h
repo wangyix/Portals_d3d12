@@ -71,7 +71,7 @@ public:
 	XMMATRIX GetXYScaledPortalToWorldMatrix()const;
 	XMMATRIX GetXYScaledWorldToPortalMatrix()const;
 
-	static XMMATRIX CalculateVirtualizationMatrix(const Portal &LookThru, const Portal &Other);
+	static XMMATRIX CalculateVirtualizationMatrix(const Portal &From, const Portal &To);
 
 
 	static void BuildBoxMeshData(GeometryGenerator::MeshData *PortalMesh);

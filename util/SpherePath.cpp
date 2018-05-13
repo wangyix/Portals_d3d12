@@ -164,14 +164,14 @@ bool SpherePath::MoveClippedCamera(Camera &Cam, XMFLOAT3 Dir, float MoveDist,
 	UpdateClosestCollision(&ClosestX, &ClosestXDist, &ClosestRedirectRatio, &ClosestRedirectDir, X, XDist, RedirectRatio, RedirectDir);
 
 
-	XMMATRIX Virtualize = Portal::CalculateVirtualizationMatrix(OtherPortal, ClipPortal);
+	XMMATRIX Virtualize = Portal::CalculateVirtualizationMatrix(ClipPortal, OtherPortal);
 
 
 	// check if this path is heading into or away from the portal
 	if (XMFloat3Dot(Dir, ClipPortal.GetNormal()) < 0.0f)	// heading into
 	{
 		// collision with the virtual room on the other side of ClipPortal
-		XMMATRIX Unvirtualize = Portal::CalculateVirtualizationMatrix(ClipPortal, OtherPortal);
+		XMMATRIX Unvirtualize = Portal::CalculateVirtualizationMatrix(OtherPortal, ClipPortal);
 		X = Level.SpherePathVirtualCollision(Virtualize, Unvirtualize, SphereRadius, S, Dir, MoveDist, &XDist, &RedirectRatio, &RedirectDir);
 	}
 	else		// heading out of
