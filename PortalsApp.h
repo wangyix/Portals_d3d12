@@ -96,6 +96,8 @@ private:
       int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal, int world2ThisToOtherCBIndex,
       int world2OtherToThisCBIndex);
 
+  void DrawPortalBoxToCoverDepthHoleAndResetStencil(RenderItem* portalBoxRi);
+
   XMFLOAT3 mAmbientLight;
   DirectionalLight mDirLights[NUM_LIGHTS];
 
