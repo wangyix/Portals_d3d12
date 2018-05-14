@@ -286,22 +286,23 @@ void PortalsApp::BuildDescriptorHeaps() {
 }
 
 void PortalsApp::BuildShadersAndInputLayout() {
-  std::string numLightsStr = std::to_string(NUM_LIGHTS);
   D3D_SHADER_MACRO defines[] = {
-      { "NUM_LIGHTS", numLightsStr.c_str() },
+      { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr },
       { nullptr, nullptr } };
-  defines[1] = { "CLIP_PLANE", nullptr };
   mShaders["portalBoxVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");
-  mShaders["portalBoxClipPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
-  defines[1] = { "CLEAR_DEPTH", nullptr };
-  mShaders["portalBoxClearDepthVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");  
   mShaders["portalBoxPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
+  defines[0] = { "CLEAR_DEPTH", nullptr };
+  mShaders["portalBoxClearDepthVS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "VS", "vs_5_1");  
+  defines[0] = { "CLIP_PLANE", nullptr };
+  mShaders["portalBoxClipPS"] = d3dUtil::CompileShader(L"fx/PortalBox.hlsl", defines, "PS", "ps_5_1");
 
+  std::string numLightsStr = std::to_string(NUM_LIGHTS);
   std::string portalTexRadRatioStr = std::to_string(PORTAL_TEX_RAD_RATIO);
+  defines[0] = { "NUM_LIGHTS", numLightsStr.c_str() };
   defines[1] = { "PORTAL_TEX_RAD_RATIO", portalTexRadRatioStr.c_str() };
   defines[2] = { "CLIP_PLANE", nullptr };
   mShaders["defaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
@@ -551,7 +552,7 @@ void PortalsApp::BuildPSOs() {
 
   // default PSO, for rendering room and player
   
-  // default PSO, pixels are clipped against a plane, and stencil test pass when equal to ref value.
+  // default PSO, pixels are clipped against a plane, and stencil test pass when >= ref value.
   ID3DBlob* shader = mShaders["defaultVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   shader = mShaders["defaultClipPS"].Get();
@@ -563,7 +564,7 @@ void PortalsApp::BuildPSOs() {
       &psoDesc, IID_PPV_ARGS(&mPSOs["defaultClip"])));
   
   // default PSO with portal hole and textures rendered,
-  // pixels are clipped against a plane, and stencil test pass when equal to ref value.
+  // pixels are clipped against a plane, and stencil test pass when >= ref value.
   shader = mShaders["defaultPortalsVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   shader = mShaders["defaultPortalsClipPS"].Get();
@@ -576,7 +577,7 @@ void PortalsApp::BuildPSOs() {
 
   // portalBox PSO, for rendering a box behind a portal hole to stencil.
   
-  // portalbox PSO with pixels clipped against a plane, stencil test pass when equal to ref value,
+  // portalbox PSO with pixels clipped against a plane, stencil test pass when >= ref value,
   // and increments stencil values.
   shader = mShaders["portalBoxVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
@@ -589,7 +590,7 @@ void PortalsApp::BuildPSOs() {
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilIncr"])));
 
-  // portalbox PSO with stencil test pass when equal to ref value, disable depth test, and write
+  // portalbox PSO with stencil test pass when >= ref value, disable depth test, and write
   // max depth value to depth buffer.
   shader = mShaders["portalBoxClearDepthVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
@@ -798,18 +799,19 @@ void PortalsApp::Draw(float dt) {
 
     // Render insides of portal A.
     DrawRoomAndPlayerIterations(
-      &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations, CLIP_PLANE_PORTAL_B_CB_INDEX,
-      true);
+        &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
+        CLIP_PLANE_PORTAL_B_CB_INDEX, true);
 
     // Clear stencil buffer before rendering insides of portal B to avoid parts of it appearing
     // inside portal A.
     mCommandList->ClearDepthStencilView(
     DepthStencilView(), D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    // Render insides of portal A.
+
+    // Render insides of portal B.
     DrawRoomAndPlayerIterations(
-      &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations, CLIP_PLANE_PORTAL_A_CB_INDEX,
-      true);
+        &mPortalBoxBRenderItem, portalBCBIndexBase, 0*portalBIterations,
+        CLIP_PLANE_PORTAL_A_CB_INDEX, true);
   }
 
 
@@ -855,7 +857,7 @@ void PortalsApp::Draw(float dt) {
 
     mCommandList->OMSetStencilRef(0);
 
-    // Bind per-pass constant buffer.
+    // Set per-pass constant buffer to unmodified view space.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_PER_PASS_ROOT_INDEX,
         mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
@@ -1411,7 +1413,7 @@ void PortalsApp::DrawRoomAndPlayerIterations(
       mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
           CLIP_PLANE_DUMMY_CB_INDEX));
 
-  // Bind per-pass constant buffer.
+  // Set per-pass constant buffer to unmodified view space.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_PER_PASS_ROOT_INDEX,
       mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
@@ -1427,7 +1429,7 @@ void PortalsApp::DrawRoomAndPlayerIterations(
   // Draw portal box again to clear depth values inside portal hole.
   mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
   DrawRenderItem(mCommandList.Get(), portalBoxRi, true);
-
+  
   // Set clip plane.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
@@ -1469,7 +1471,7 @@ void PortalsApp::DrawPlayerIterations(
   if (includeRealIteration) {
     mCommandList->OMSetStencilRef(0);
 
-    // Bind per-pass constant buffer.
+    // Set per-pass constant buffer to unmodified view space.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_PER_PASS_ROOT_INDEX,
         mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));

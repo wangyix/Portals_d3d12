@@ -29,7 +29,7 @@ VertexOut VS(VertexIn vin) {
   // Set depth to max depth (1.0 after perspective divide).
   vout.PosH.z = vout.PosH.w;
 #endif
-  
+
   return vout;
 }
 
