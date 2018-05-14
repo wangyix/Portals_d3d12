@@ -1458,7 +1458,7 @@ void PortalsApp::DrawRoomAndPlayerIterations(
 
     // Draw portal box again to clear depth values inside portal hole.
     mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
-    DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem, true);
+    DrawRenderItem(mCommandList.Get(), portalBoxRi, true);
   }
 }
 
