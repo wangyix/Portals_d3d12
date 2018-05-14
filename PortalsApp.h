@@ -82,7 +82,18 @@ private:
       int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float distDilation);
   void UpdateFrameCB();
 
-  void DrawRenderItem(ID3D12GraphicsCommandList* cmdList, RenderItem* ri);
+  void DrawRenderItem(
+    ID3D12GraphicsCommandList* cmdList, RenderItem* ri, bool sameAsPrevious = false);
+  
+  void DrawRoomIterations(
+      RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneCBIndex);
+
+  void DrawPlayerIterations(int CBIndexBase, int numIterations, bool includeRealIteration);
+
+  void DrawRoomsAndIntersectingPlayersForPortal(
+      RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlanePortalCBIndex,
+      int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal, int world2ThisToOtherCBIndex,
+      int world2OtherToThisCBIndex);
 
   XMFLOAT3 mAmbientLight;
   DirectionalLight mDirLights[NUM_LIGHTS];
