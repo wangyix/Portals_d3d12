@@ -627,9 +627,9 @@ void PortalsApp::Update(float dt) {
 
   // Portals cannot be changed if either portal intersects the player or the spectator camera
   bool modifyPortal = (!mPlayerIntersectPortalA && !mPlayerIntersectPortalB) &&
-    !mPortalA.DiscIntersectSphere(
+    !mPortalA.IntersectSphereFromFront(
         mLeftCamera.GetPosition(), mLeftCamera.GetBoundingSphereRadius() + 0.001f) &&
-    !mPortalB.DiscIntersectSphere(
+    !mPortalB.IntersectSphereFromFront(
         mLeftCamera.GetPosition(), mLeftCamera.GetBoundingSphereRadius() + 0.001f);
 
   OnKeyboardInput(dt, modifyPortal);
@@ -1241,9 +1241,9 @@ void PortalsApp::OnKeyboardInput(float dt, bool modifyPortal) {
       mPlayerRenderItem.World = mPlayer.GetWorldMatrix();
       mPlayerRenderItem.NumFramesDirty = gNumFrameResources;
       
-      mPlayerIntersectPortalA = mPortalA.DiscIntersectSphere(
+      mPlayerIntersectPortalA = mPortalA.IntersectSphereFromFront(
           mPlayer.GetPosition(), mPlayer.GetBoundingSphereRadius() + 0.001f);
-      mPlayerIntersectPortalB = mPortalB.DiscIntersectSphere(
+      mPlayerIntersectPortalB = mPortalB.IntersectSphereFromFront(
           mPlayer.GetPosition(), mPlayer.GetBoundingSphereRadius() + 0.001f);
     }
   }

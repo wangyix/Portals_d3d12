@@ -50,13 +50,13 @@ bool SpherePath::MoveCameraAlongPath(Camera &Cam, XMFLOAT3 Dir, float MoveDist,
 	// is the camera currently clipping the portal?
 
 	// SPHERE CLIPPING ORANGE PORTAL
-	if (OrangePortal.DiscIntersectSphere(S, SphereRadius))
+	if (OrangePortal.IntersectSphereFromFront(S, SphereRadius))
 	{
 		return MoveClippedCamera(Cam, Dir, MoveDist, Level, OrangePortal, BluePortal, XDist_ptr, RedirectRatio_ptr, RedirectDir_ptr);
 	}
 	
 	// SPHERE CLIPPING BLUE PORTAL
-	if (BluePortal.DiscIntersectSphere(S, SphereRadius))
+	if (BluePortal.IntersectSphereFromFront(S, SphereRadius))
 	{
 		return MoveClippedCamera(Cam, Dir, MoveDist, Level, BluePortal, OrangePortal, XDist_ptr, RedirectRatio_ptr, RedirectDir_ptr);
 	}

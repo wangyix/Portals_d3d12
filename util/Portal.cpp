@@ -178,14 +178,14 @@ bool Portal::DiscContainsPoint(XMFLOAT3 Point)const
 }
 
 // being tangent to portal plane does not count as intersection
-bool Portal::DiscIntersectSphere(XMFLOAT3 Center, float Radius)const
+bool Portal::IntersectSphereFromFront(XMFLOAT3 Center, float Radius)const
 {
 	XMVECTOR D = XMLoadFloat3(&Center);
 	XMVECTOR C = XMLoadFloat3(&Position);
 	XMVECTOR N = XMLoadFloat3(&Normal);
 
 	float DistToPortalPlane = XMVectorGetX(XMVector3Dot(D-C, N));
-	if (DistToPortalPlane >= Radius)
+	if (DistToPortalPlane < 0.0f || DistToPortalPlane >= Radius)
 		return false;
 
 	// project sphere center onto portal plane

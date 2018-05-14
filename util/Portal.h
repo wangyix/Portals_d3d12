@@ -63,7 +63,7 @@ public:
 	float GetMaxTextureRadius()const;
 
 	bool DiscContainsPoint(XMFLOAT3 Point)const;
-	bool DiscIntersectSphere(XMFLOAT3 Center, float Radius)const;
+	bool IntersectSphereFromFront(XMFLOAT3 Center, float Radius)const;
 
 	void Orthonormalize();
   XMMATRIX GetPortalToWorldMatrix()const;
