@@ -780,8 +780,8 @@ void PortalsApp::Draw(float dt) {
         CLIP_PLANE_PORTAL_A_CB_INDEX, CLIP_PLANE_PORTAL_B_CB_INDEX, mPlayerIntersectPortalA,
         WORLD2_PORTAL_A_TO_B_CB_INDEX, WORLD2_PORTAL_B_TO_A_CB_INDEX);
 
-    // Clear stencil before rendering insides of portal B to avoid parts of it appearing inside
-    // portal A.
+    // Clear stencil buffer before rendering insides of portal B to avoid parts of it appearing
+    // inside portal A.
     mCommandList->ClearDepthStencilView(
     DepthStencilView(), D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     
@@ -795,6 +795,21 @@ void PortalsApp::Draw(float dt) {
     // Draw player
     mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
     DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+
+    // Render insides of portal A.
+    DrawRoomAndPlayerIterations(
+      &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations, CLIP_PLANE_PORTAL_B_CB_INDEX,
+      true);
+
+    // Clear stencil buffer before rendering insides of portal B to avoid parts of it appearing
+    // inside portal A.
+    mCommandList->ClearDepthStencilView(
+    DepthStencilView(), D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+    // Render insides of portal A.
+    DrawRoomAndPlayerIterations(
+      &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations, CLIP_PLANE_PORTAL_A_CB_INDEX,
+      true);
   }
 
 
@@ -1387,8 +1402,9 @@ void PortalsApp::DrawRenderItem(
       ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 }
 
-void PortalsApp::DrawRoomIterations(
-    RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneCBIndex) {
+void PortalsApp::DrawRoomAndPlayerIterations(
+    RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneOtherPortalCBIndex,
+    bool drawPlayers) {
   // Set clip plane to no clipping.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
@@ -1415,7 +1431,7 @@ void PortalsApp::DrawRoomIterations(
   // Set clip plane.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
-      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(clipPlaneCBIndex));
+      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(clipPlaneOtherPortalCBIndex));
 
   UINT stencilRef = 2;
   int passCBIndex = CBIndexBase;
@@ -1428,6 +1444,11 @@ void PortalsApp::DrawRoomIterations(
     // Draw room
     mCommandList->SetPipelineState(mPSOs["defaultPortalsClip"].Get());
     DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
+
+    if (drawPlayers) {
+      mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+      DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+    }
 
     // Draw portal box to increment stencil values inside portal hole.
     mCommandList->SetPipelineState(mPSOs["portalBoxStencilIncr"].Get());
@@ -1477,8 +1498,8 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
     int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal, int world2ThisToOtherCBIndex,
     int world2OtherToThisCBIndex) {
   // Draw rooms inside portal
-  DrawRoomIterations(portalBoxRi, CBIndexBase, numIterations,
-    clipPlaneOtherPortalCBIndex);
+  DrawRoomAndPlayerIterations(portalBoxRi, CBIndexBase, numIterations,
+    clipPlaneOtherPortalCBIndex, false);
 
   // Set clip plane to this portal
   mCommandList->SetGraphicsRootConstantBufferView(

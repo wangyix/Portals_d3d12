@@ -85,8 +85,9 @@ private:
   void DrawRenderItem(
     ID3D12GraphicsCommandList* cmdList, RenderItem* ri, bool sameAsPrevious = false);
   
-  void DrawRoomIterations(
-      RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneCBIndex);
+  void DrawRoomAndPlayerIterations(
+      RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneCBIndex,
+      bool drawPlayers);
 
   void DrawPlayerIterations(int CBIndexBase, int numIterations, bool includeRealIteration);
 
