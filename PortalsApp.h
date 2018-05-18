@@ -84,19 +84,23 @@ private:
 
   void DrawRenderItem(
     ID3D12GraphicsCommandList* cmdList, RenderItem* ri, bool sameAsPrevious = false);
+
+  void DrawIntersectingPlayerRealHalves(
+    int clipPlanePortalCBIndex, int clipPlaneOtherPortalCBIndex, int world2ThisToOtherCBIndex);
   
   void DrawRoomAndPlayerIterations(
-      RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneCBIndex,
-      bool drawPlayers);
+      UINT stencilRef, RenderItem* portalBoxRi, int CBIndexBase, int numIterations,
+      int clipPlaneCBIndex, bool drawPlayers);
 
-  void DrawPlayerIterations(int CBIndexBase, int numIterations, bool includeRealIteration);
+  void DrawPlayerIterations(
+    UINT stencilRef, int CBIndexBase, int numIterations, bool includeRealIteration);
 
   void DrawRoomsAndIntersectingPlayersForPortal(
-      RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlanePortalCBIndex,
-      int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal, int world2ThisToOtherCBIndex,
-      int world2OtherToThisCBIndex);
+      UINT stencilRef, RenderItem* portalBoxRi, int CBIndexBase, int numIterations,
+      int clipPlanePortalCBIndex, int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal,
+      int world2ThisToOtherCBIndex, int world2OtherToThisCBIndex);
 
-  void DrawPortalBoxToCoverDepthHoleAndResetStencil(RenderItem* portalBoxRi);
+  void DrawPortalBoxToCoverDepthHoleAndZeroStencil(UINT stencilRef, RenderItem* portalBoxRi);
 
   XMFLOAT3 mAmbientLight;
   DirectionalLight mDirLights[NUM_LIGHTS];

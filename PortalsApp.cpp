@@ -577,6 +577,18 @@ void PortalsApp::BuildPSOs() {
 
   // portalBox PSO, for rendering a box behind a portal hole to stencil.
 
+  // portalBox PSO with stencil test always passes and replaces with ref value.
+  shader = mShaders["portalBoxVS"].Get();
+  psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  shader = mShaders["portalBoxPS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+  psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilSet"])));
+
   // portalbox PSO with pixels clipped against a plane, stencil test pass when >= ref value,
   // and increments stencil values.
   shader = mShaders["portalBoxVS"].Get();
@@ -603,19 +615,21 @@ void PortalsApp::BuildPSOs() {
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxClearDepth"])));
 
-  // portalBox PSO, stencil test pass when >= ref value, and replaces with ref value. Does not
-  // write any pixel colors.
+  // portalbox PSO with stencil test pass when >= ref value, disable depth test, and zero stencil
+  // values. Does not write any colors to render target.
   shader = mShaders["portalBoxVS"].Get();
   psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   shader = mShaders["portalBoxPS"].Get();
   psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
   psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
   psoDesc.DepthStencilState.StencilEnable = true;
   psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
   psoDesc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_ZERO;
+  psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
   psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = 0;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
-      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxStencilZero"])));
+      &psoDesc, IID_PPV_ARGS(&mPSOs["portalBoxDepthAlwaysStencilZero"])));
 }
 
 void PortalsApp::OnResize() {
@@ -681,8 +695,9 @@ void PortalsApp::Draw(float dt) {
   mCommandList->RSSetViewports(1, &mScreenViewport);
   mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-  // Clear the back and depth buffer.
+  // Clear the back buffer.
   mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::SkyBlue, 0, nullptr);
+  // Clear depth and stencil buffers.
   mCommandList->ClearDepthStencilView(
     DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
@@ -719,8 +734,11 @@ void PortalsApp::Draw(float dt) {
 
 
 
-
-
+  
+  const UINT portalAStencilRef = 2;
+  const UINT portalBStencilRef = 1;
+  assert(portalAStencilRef > portalBStencilRef);
+  
   const UINT portalAIterations = 3;
   const UINT portalBIterations = 3;
 
@@ -784,52 +802,74 @@ void PortalsApp::Draw(float dt) {
       mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
           WORLD2_IDENTITY_CB_INDEX));
   mCommandList->OMSetStencilRef(0);
-  // Draw room
+
+  // Draw real room
   DrawRenderItem(mCommandList.Get(), &mRoomRenderItem);
 
-  
+  // Draw real player or player halves.
+  if (mPlayerIntersectPortalA) {
+    DrawIntersectingPlayerRealHalves(
+        CLIP_PLANE_PORTAL_A_CB_INDEX, CLIP_PLANE_PORTAL_B_CB_INDEX, WORLD2_PORTAL_A_TO_B_CB_INDEX);
+  } else if (mPlayerIntersectPortalB) {
+    DrawIntersectingPlayerRealHalves(
+        CLIP_PLANE_PORTAL_B_CB_INDEX, CLIP_PLANE_PORTAL_A_CB_INDEX, WORLD2_PORTAL_B_TO_A_CB_INDEX);
+  } else {
+    mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+  }
+
+  // Draw portal boxes for both portals to cover their holes. This is done before rendering the
+  // insides of either portal to prevent pixels of portal box A appearing inside an uncovered
+  // portal B hole. While rendering the inside of portal A, those pixels might be rendered to with
+  // a depth closer than portal B. Then, when portal B's box is rendered, those pixels will remain
+  // "in front" which means they won't be properly marked in the stencil as being inside portal B.
+  // Note: portal boxes must be drawn after player so that portal pixels behind the player are not
+  // marked in the stencil buffer.
+  mCommandList->SetPipelineState(mPSOs["portalBoxStencilSet"].Get());
+  mCommandList->OMSetStencilRef(portalAStencilRef);
+  DrawRenderItem(mCommandList.Get(), &mPortalBoxARenderItem);
+  mCommandList->OMSetStencilRef(portalBStencilRef);
+  DrawRenderItem(mCommandList.Get(), &mPortalBoxBRenderItem);
+
+  // At this point, the stencil buffer is 2 inside portal A, 1 inside portal B, and 0 everywhere
+  // else. First, the inside of portal A is rendered using stencil tests >=2, >=3, ... .  Then,
+  // portal box A is rendered again with depth-test-always, stencil test >=2, and zeroing the
+  // stencil buffer. This shoud leave the stencil buffer 0 everywhere except inside portal B, where
+  // it's still 1. Finally, the inside of portal B is rendered using stencil tests >=1, >=2, ...
+
   if (mPlayerIntersectPortalA || mPlayerIntersectPortalB) {
     // Render insides of portal A and part of player sticking out of portal A.
     DrawRoomsAndIntersectingPlayersForPortal(
-        &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
+        portalAStencilRef, &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
         CLIP_PLANE_PORTAL_A_CB_INDEX, CLIP_PLANE_PORTAL_B_CB_INDEX, mPlayerIntersectPortalA,
         WORLD2_PORTAL_A_TO_B_CB_INDEX, WORLD2_PORTAL_B_TO_A_CB_INDEX);
 
-    // Clear stencil buffer for pixels inside portal A and cover up its hole in the depth buffer.
-    // This way, the first portal B box can't appear "in front" of portal A due to portal A's depth
-    // hole, and stencil tests for rendering inside portal B won't pass for any pixels inside
-    // portal A.
-    DrawPortalBoxToCoverDepthHoleAndResetStencil(&mPortalBoxARenderItem);
-    
+    // Clear stencil buffer for pixels inside portal A.
+    DrawPortalBoxToCoverDepthHoleAndZeroStencil(portalAStencilRef, &mPortalBoxARenderItem);
+
     // Render insides of portal B and part of player sticking out of portal B.
     DrawRoomsAndIntersectingPlayersForPortal(
-        &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations,
+        portalBStencilRef, &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations,
         CLIP_PLANE_PORTAL_B_CB_INDEX, CLIP_PLANE_PORTAL_A_CB_INDEX, mPlayerIntersectPortalB,
         WORLD2_PORTAL_B_TO_A_CB_INDEX, WORLD2_PORTAL_A_TO_B_CB_INDEX);
-
   } else {
-    // Draw player
-    mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
-    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
-
     // Render insides of portal A.
     DrawRoomAndPlayerIterations(
-        &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
+        portalAStencilRef, &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
         CLIP_PLANE_PORTAL_B_CB_INDEX, true);
 
     // Clear stencil buffer for pixels inside portal A and cover up its hole in the depth buffer.
     // This way, the first portal B box can't appear "in front" of portal A due to portal A's depth
     // hole, and stencil tests for rendering inside portal B won't pass for any pixels inside
     // portal A.
-    DrawPortalBoxToCoverDepthHoleAndResetStencil(&mPortalBoxARenderItem);
+    DrawPortalBoxToCoverDepthHoleAndZeroStencil(portalAStencilRef, &mPortalBoxARenderItem);
 
     // Render insides of portal B.
     DrawRoomAndPlayerIterations(
-        &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations,
+        portalBStencilRef, &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations,
         CLIP_PLANE_PORTAL_A_CB_INDEX, true);
+
   }
-
-
 
 
 #if 0
@@ -1419,41 +1459,59 @@ void PortalsApp::DrawRenderItem(
       ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 }
 
-void PortalsApp::DrawRoomAndPlayerIterations(
-    RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlaneOtherPortalCBIndex,
-    bool drawPlayers) {
-  // Set clip plane to no clipping.
+void PortalsApp::DrawIntersectingPlayerRealHalves(
+    int clipPlanePortalCBIndex, int clipPlaneOtherPortalCBIndex, int world2ThisToOtherCBIndex) {
+  // Assume stencil ref is already set to 0.
+
+  mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+
+  // Set clip plane to this portal.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
-      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-          CLIP_PLANE_DUMMY_CB_INDEX));
+      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(clipPlanePortalCBIndex));
+  // Draw larger half of player.
+  DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
 
+  // Set clip plane to other portal.
+  mCommandList->SetGraphicsRootConstantBufferView(
+      CB_CLIP_PLANE_ROOT_INDEX,
+      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(clipPlaneOtherPortalCBIndex));
+  // Set world2 matrix to this-to-other.
+  mCommandList->SetGraphicsRootConstantBufferView(
+      CB_WORLD2_ROOT_INDEX,
+      mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
+          world2ThisToOtherCBIndex));
+  // Draw smaller half of player.
+  DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
+  // Restore world2 matrix to identity.
+  mCommandList->SetGraphicsRootConstantBufferView(
+      CB_WORLD2_ROOT_INDEX,
+      mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
+          WORLD2_IDENTITY_CB_INDEX));
+}
+
+void PortalsApp::DrawRoomAndPlayerIterations(
+    UINT stencilRef, RenderItem* portalBoxRi, int CBIndexBase, int numIterations,
+    int clipPlaneOtherPortalCBIndex, bool drawPlayers) {
   // Set per-pass constant buffer to unmodified view space.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_PER_PASS_ROOT_INDEX,
       mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
-
-  mCommandList->OMSetStencilRef(0);
-
-  // Draw portal box to increment stencil values inside portal hole.
-  mCommandList->SetPipelineState(mPSOs["portalBoxStencilIncr"].Get());
-  DrawRenderItem(mCommandList.Get(), portalBoxRi);
-    
-  mCommandList->OMSetStencilRef(1);
-
-  // Draw portal box again to clear depth values inside portal hole.
-  mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
-  DrawRenderItem(mCommandList.Get(), portalBoxRi, true);
   
-  // Set clip plane.
+  // Set clip plane (not used by portalBoxClearDepth).
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
       mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(clipPlaneOtherPortalCBIndex));
 
-  UINT stencilRef = 2;
   int passCBIndex = CBIndexBase;
   for (int i = 0; i < numIterations; ++i, ++stencilRef, ++passCBIndex) {
-    // Bind per-pass constant buffer.
+    mCommandList->OMSetStencilRef(stencilRef);
+
+    // Draw portal box to clear depth values inside portal hole.
+    mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
+    DrawRenderItem(mCommandList.Get(), portalBoxRi, i > 0);
+
+    // Advance per-pass constant buffer.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_PER_PASS_ROOT_INDEX,
         mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
@@ -1470,17 +1528,11 @@ void PortalsApp::DrawRoomAndPlayerIterations(
     // Draw portal box to increment stencil values inside portal hole.
     mCommandList->SetPipelineState(mPSOs["portalBoxStencilIncr"].Get());
     DrawRenderItem(mCommandList.Get(), portalBoxRi);
-    
-    mCommandList->OMSetStencilRef(stencilRef);
-
-    // Draw portal box again to clear depth values inside portal hole.
-    mCommandList->SetPipelineState(mPSOs["portalBoxClearDepth"].Get());
-    DrawRenderItem(mCommandList.Get(), portalBoxRi, true);
   }
 }
 
 void PortalsApp::DrawPlayerIterations(
-    int CBIndexBase, int numIterations, bool includeRealIteration) {
+    UINT stencilRef, int CBIndexBase, int numIterations, bool includeRealIteration) {
   mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
 
   if (includeRealIteration) {
@@ -1495,7 +1547,6 @@ void PortalsApp::DrawPlayerIterations(
     DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
   }
 
-  UINT stencilRef = 1;
   int passCBIndex = CBIndexBase;
   for (int i = 0; i < numIterations; ++i, ++stencilRef, ++passCBIndex) {
     mCommandList->OMSetStencilRef(stencilRef);
@@ -1511,12 +1562,12 @@ void PortalsApp::DrawPlayerIterations(
 }
 
 void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
-    RenderItem* portalBoxRi, int CBIndexBase, int numIterations, int clipPlanePortalCBIndex,
-    int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal, int world2ThisToOtherCBIndex,
-    int world2OtherToThisCBIndex) {
+    UINT stencilRef, RenderItem* portalBoxRi, int CBIndexBase, int numIterations,
+    int clipPlanePortalCBIndex, int clipPlaneOtherPortalCBIndex, bool playerIntersectPortal,
+    int world2ThisToOtherCBIndex, int world2OtherToThisCBIndex) {
   // Draw rooms inside portal
-  DrawRoomAndPlayerIterations(portalBoxRi, CBIndexBase, numIterations,
-    clipPlaneOtherPortalCBIndex, false);
+  DrawRoomAndPlayerIterations(
+      stencilRef, portalBoxRi, CBIndexBase, numIterations, clipPlaneOtherPortalCBIndex, false);
 
   // Set clip plane to this portal
   mCommandList->SetGraphicsRootConstantBufferView(
@@ -1525,7 +1576,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
           clipPlanePortalCBIndex));
   if (playerIntersectPortal) {
     // Draw larger half of players
-    DrawPlayerIterations(CBIndexBase, numIterations, true);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, true);
   } else {
     // Set world2 matrix to other-to-this.
     mCommandList->SetGraphicsRootConstantBufferView(
@@ -1533,7 +1584,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
         mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
             world2OtherToThisCBIndex));
     // Draw smaller half of players.
-    DrawPlayerIterations(CBIndexBase, numIterations, true);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, true);
     // Restore world2 matrix to identity.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_WORLD2_ROOT_INDEX,
@@ -1553,7 +1604,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
         mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
             world2ThisToOtherCBIndex));
     // Draw smaller half of players.
-    DrawPlayerIterations(CBIndexBase, numIterations, false);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, false);
     // Restore world2 matrix to identity.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_WORLD2_ROOT_INDEX,
@@ -1561,22 +1612,23 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
             WORLD2_IDENTITY_CB_INDEX));
   } else {
     // Draw larger half of players.
-    DrawPlayerIterations(CBIndexBase, numIterations, false);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, false);
   }
 }
 
-void PortalsApp::DrawPortalBoxToCoverDepthHoleAndResetStencil(RenderItem* portalBoxRi) {
+void PortalsApp::DrawPortalBoxToCoverDepthHoleAndZeroStencil(
+    UINT stencilRef, RenderItem* portalBoxRi) {
   // Set clip plane to no clipping.
-  mCommandList->SetGraphicsRootConstantBufferView(
+  /*mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
       mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-          CLIP_PLANE_DUMMY_CB_INDEX));
+          CLIP_PLANE_DUMMY_CB_INDEX));*/
   // Set per-pass constant buffer to unmodified view space.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_PER_PASS_ROOT_INDEX,
       mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
-  mCommandList->OMSetStencilRef(1);
-  mCommandList->SetPipelineState(mPSOs["portalBoxStencilZero"].Get());
+  mCommandList->OMSetStencilRef(stencilRef);
+  mCommandList->SetPipelineState(mPSOs["portalBoxDepthAlwaysStencilZero"].Get());
   DrawRenderItem(mCommandList.Get(), portalBoxRi);
 }
 
