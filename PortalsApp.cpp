@@ -1225,33 +1225,20 @@ void PortalsApp::DrawRoomAndPlayerIterations(
   }
 }
 
-void PortalsApp::DrawPlayerIterations(
-    UINT stencilRef, int CBIndexBase, int numIterations, bool includeRealIteration) {
+void PortalsApp::DrawPlayerIterations(UINT stencilRef, int CBIndexBase, int numIterations) {
   mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
-
-  if (includeRealIteration) {
-    mCommandList->OMSetStencilRef(0);
-
-    // Set per-pass constant buffer to unmodified view space.
-    mCommandList->SetGraphicsRootConstantBufferView(
-        CB_PER_PASS_ROOT_INDEX,
-        mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(0));
-
-    // Draw player
-    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
-  }
 
   int passCBIndex = CBIndexBase;
   for (int i = 0; i < numIterations; ++i, ++stencilRef, ++passCBIndex) {
     mCommandList->OMSetStencilRef(stencilRef);
 
-    // Bind per-pass constant buffer.
+    // Set per-pass constant buffer.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_PER_PASS_ROOT_INDEX,
         mCurrentFrameResource->PassCB.GetResourceGPUVirtualAddress(passCBIndex));
 
     // Draw player
-    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem, includeRealIteration || i > 0);
+    DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem, i > 0);
   }
 }
 
@@ -1270,7 +1257,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
           clipPlanePortalCBIndex));
   if (playerIntersectPortal) {
     // Draw larger half of players
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, true);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
   } else {
     // Set world2 matrix to other-to-this.
     mCommandList->SetGraphicsRootConstantBufferView(
@@ -1278,7 +1265,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
         mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
             world2OtherToThisCBIndex));
     // Draw smaller half of players.
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, true);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
     // Restore world2 matrix to identity.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_WORLD2_ROOT_INDEX,
@@ -1298,7 +1285,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
         mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
             world2ThisToOtherCBIndex));
     // Draw smaller half of players.
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, false);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
     // Restore world2 matrix to identity.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_WORLD2_ROOT_INDEX,
@@ -1306,7 +1293,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
             WORLD2_IDENTITY_CB_INDEX));
   } else {
     // Draw larger half of players.
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, false);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
   }
 }
 

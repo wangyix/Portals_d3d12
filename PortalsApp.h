@@ -93,7 +93,7 @@ private:
       int clipPlaneCBIndex, bool drawPlayers);
 
   void DrawPlayerIterations(
-    UINT stencilRef, int CBIndexBase, int numIterations, bool includeRealIteration);
+    UINT stencilRef, int CBIndexBase, int numIterations);
 
   void DrawRoomsAndIntersectingPlayersForPortal(
       UINT stencilRef, RenderItem* portalBoxRi, int CBIndexBase, int numIterations,
