@@ -702,8 +702,8 @@ void PortalsApp::Draw(float dt) {
   const UINT portalBStencilRef = 1;
   assert(portalAStencilRef > portalBStencilRef);
   
-  const UINT portalAIterations = 3;
-  const UINT portalBIterations = 3;
+  const UINT portalAIterations = 8;
+  const UINT portalBIterations = 8;
 
   // Compute per-pass constant buffer values for all iterations.
 

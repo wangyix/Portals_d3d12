@@ -1,7 +1,7 @@
 #include "Common.hlsl"
 
 #ifndef OUT_COLOR
-#define OUT_COLOR float3(1.0f, 0.0f, 0.0f)
+#define OUT_COLOR float3(0.7f, 0.7f, 0.7f)
 #endif
 
 struct VertexIn {
