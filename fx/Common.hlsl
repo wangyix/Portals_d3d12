@@ -44,8 +44,6 @@ cbuffer cbPerObject : register(b0) {
 };
 
 cbuffer cbClipPlane : register(b1) {
-  float3 gClipPlanePosition;
-  float gClipPlanePad0;
   float3 gClipPlaneNormal;
   float gClipPlaneOffset;
 }

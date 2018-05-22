@@ -17,8 +17,6 @@ struct ObjectConstants
 };
 
 struct ClipPlaneConstants {
-  DirectX::XMFLOAT3 ClipPlanePosition = { 0.0f, 0.0f, 0.0f };
-  float ClipPlanePad0;
   DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
   float ClipPlaneOffset = 0.0f;
 };

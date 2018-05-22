@@ -35,7 +35,7 @@ VertexOut VS(VertexIn vin) {
 
 float4 PS(VertexOut pin) : SV_TARGET {
 #ifdef CLIP_PLANE
-  clip(dot(pin.PosW - gClipPlanePosition, gClipPlaneNormal) - gClipPlaneOffset);
+  clip(dot(pin.PosW, gClipPlaneNormal) - gClipPlaneOffset);
 #endif
   return float4(OUT_COLOR, 1.0f);
 }

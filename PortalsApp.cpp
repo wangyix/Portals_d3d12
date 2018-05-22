@@ -616,8 +616,10 @@ void PortalsApp::Update(float dt) {
 
   XMFLOAT3 zero(0.0f, 0.0f, 0.0f);
   UpdateClipPlaneCB(CLIP_PLANE_DUMMY_CB_INDEX, zero, zero, -1.0f);  // won't clip anything
-  UpdateClipPlaneCB(CLIP_PLANE_PORTAL_A_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal());
-  UpdateClipPlaneCB(CLIP_PLANE_PORTAL_B_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal());
+  UpdateClipPlaneCB(
+      CLIP_PLANE_PORTAL_A_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal(), -0.001f);
+  UpdateClipPlaneCB(
+      CLIP_PLANE_PORTAL_B_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal(), -0.001f);
 
   UpdateWorld2CB(WORLD2_IDENTITY_CB_INDEX, XMMatrixIdentity());
   UpdateWorld2CB(WORLD2_PORTAL_A_TO_B_CB_INDEX, mPortalAToB);
@@ -1099,9 +1101,8 @@ void PortalsApp::UpdateObjectCBs() {
 void PortalsApp::UpdateClipPlaneCB(
     int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset) {
   ClipPlaneConstants clipPlaneCB;
-  clipPlaneCB.ClipPlanePosition = position;
   clipPlaneCB.ClipPlaneNormal = normal;
-  clipPlaneCB.ClipPlaneOffset = offset;
+  clipPlaneCB.ClipPlaneOffset = XMFloat3Dot(position, normal) + offset;
 
   mCurrentFrameResource->ClipPlaneCB.CopyData(index, clipPlaneCB);
 }
@@ -1299,11 +1300,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
 
 void PortalsApp::DrawPortalBoxToCoverDepthHoleAndZeroStencil(
     UINT stencilRef, RenderItem* portalBoxRi) {
-  // Set clip plane to no clipping.
-  /*mCommandList->SetGraphicsRootConstantBufferView(
-      CB_CLIP_PLANE_ROOT_INDEX,
-      mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
-          CLIP_PLANE_DUMMY_CB_INDEX));*/
+  // No need to reset clip plane since portalBoxDepthAlwaysStencilZero PSO doesn't use it.
   // Set per-pass constant buffer to unmodified view space.
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_PER_PASS_ROOT_INDEX,
