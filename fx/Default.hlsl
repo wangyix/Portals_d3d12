@@ -76,6 +76,9 @@ float4 PS(VertexOut pin) : SV_TARGET {
 #ifdef CLIP_PLANE
   clip(dot(pin.PosW, gClipPlaneNormal) - gClipPlaneOffset);
 #endif
+#ifdef CLIP_PLANE_2
+  clip(dot(pin.PosW, gClipPlane2Normal) - gClipPlane2Offset);
+#endif
 
   // Interpolating normal can unnormalize it, so renormalize it.
   pin.NormalW = normalize(pin.NormalW);

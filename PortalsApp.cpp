@@ -15,8 +15,8 @@ namespace {
   const UINT NUM_ROOT_PARAMETERS = 8;
 
   const int CLIP_PLANE_DUMMY_CB_INDEX = 0;
-  const int CLIP_PLANE_PORTAL_A_CB_INDEX = 1;
-  const int CLIP_PLANE_PORTAL_B_CB_INDEX = 2;
+  const int CLIP_PLANE_PORTAL_A_B_CB_INDEX = 1;
+  const int CLIP_PLANE_PORTAL_B_A_CB_INDEX = 2;
   const int NUM_CLIP_PLANE_CBS = 3;
 
   const int WORLD2_IDENTITY_CB_INDEX = 0;
@@ -304,9 +304,11 @@ void PortalsApp::BuildShadersAndInputLayout() {
   std::string portalTexRadRatioStr = std::to_string(PORTAL_TEX_RAD_RATIO);
   defines[0] = { "NUM_LIGHTS", numLightsStr.c_str() };
   defines[1] = { "PORTAL_TEX_RAD_RATIO", portalTexRadRatioStr.c_str() };
-  defines[2] = { "CLIP_PLANE", nullptr };
   mShaders["defaultVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
+  defines[2] = { "CLIP_PLANE", nullptr };
   mShaders["defaultClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
+  defines[3] = { "CLIP_PLANE_2", nullptr };
+  mShaders["defaultClipTwicePS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
   defines[3] = { "DRAW_PORTALS", nullptr };
   mShaders["defaultPortalsVS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "VS", "vs_5_1");
   mShaders["defaultPortalsClipPS"] = d3dUtil::CompileShader(L"fx/Default.hlsl", defines, "PS", "ps_5_1");
@@ -510,6 +512,17 @@ void PortalsApp::BuildPSOs() {
   psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
   ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
       &psoDesc, IID_PPV_ARGS(&mPSOs["defaultClip"])));
+
+  // default PSO, pixels are clipped against two planes, and stencil test pass when >= ref value.
+  shader = mShaders["defaultVS"].Get();
+  psoDesc.VS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  shader = mShaders["defaultClipTwicePS"].Get();
+  psoDesc.PS = { reinterpret_cast<BYTE*>(shader->GetBufferPointer()), shader->GetBufferSize() };
+  psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  psoDesc.DepthStencilState.StencilEnable = true;
+  psoDesc.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+  ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+      &psoDesc, IID_PPV_ARGS(&mPSOs["defaultClipTwice"])));
   
   // default PSO with portal hole and textures rendered,
   // pixels are clipped against a plane, and stencil test pass when >= ref value.
@@ -615,11 +628,17 @@ void PortalsApp::Update(float dt) {
   UpdateFrameCB();
 
   XMFLOAT3 zero(0.0f, 0.0f, 0.0f);
-  UpdateClipPlaneCB(CLIP_PLANE_DUMMY_CB_INDEX, zero, zero, -1.0f);  // won't clip anything
+  const float clipPlaneOffest = -0.001f;
+  // Neither planes clip anything.
+  UpdateClipPlaneCB(CLIP_PLANE_DUMMY_CB_INDEX, zero, zero, -1.0f, zero, zero, -1.0f);
+  // Clip plane 1 is portal A's plane, clip plane 2 is portal B's plane.
   UpdateClipPlaneCB(
-      CLIP_PLANE_PORTAL_A_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal(), -0.001f);
+      CLIP_PLANE_PORTAL_A_B_CB_INDEX, mPortalA.GetPosition(), mPortalA.GetNormal(),
+      clipPlaneOffest, mPortalB.GetPosition(), mPortalB.GetNormal(), clipPlaneOffest);
+  // Clip plane 1 is portal B's plane, clip plane 2 is portal A's plane.
   UpdateClipPlaneCB(
-      CLIP_PLANE_PORTAL_B_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal(), -0.001f);
+      CLIP_PLANE_PORTAL_B_A_CB_INDEX, mPortalB.GetPosition(), mPortalB.GetNormal(),
+      clipPlaneOffest, mPortalA.GetPosition(), mPortalA.GetNormal(), clipPlaneOffest);
 
   UpdateWorld2CB(WORLD2_IDENTITY_CB_INDEX, XMMatrixIdentity());
   UpdateWorld2CB(WORLD2_PORTAL_A_TO_B_CB_INDEX, mPortalAToB);
@@ -749,10 +768,10 @@ void PortalsApp::Draw(float dt) {
   // Draw real player or player halves.
   if (mPlayerIntersectPortalA) {
     DrawIntersectingPlayerRealHalves(
-        CLIP_PLANE_PORTAL_A_CB_INDEX, CLIP_PLANE_PORTAL_B_CB_INDEX, WORLD2_PORTAL_A_TO_B_CB_INDEX);
+        CLIP_PLANE_PORTAL_A_B_CB_INDEX, CLIP_PLANE_PORTAL_B_A_CB_INDEX, WORLD2_PORTAL_A_TO_B_CB_INDEX);
   } else if (mPlayerIntersectPortalB) {
     DrawIntersectingPlayerRealHalves(
-        CLIP_PLANE_PORTAL_B_CB_INDEX, CLIP_PLANE_PORTAL_A_CB_INDEX, WORLD2_PORTAL_B_TO_A_CB_INDEX);
+        CLIP_PLANE_PORTAL_B_A_CB_INDEX, CLIP_PLANE_PORTAL_A_B_CB_INDEX, WORLD2_PORTAL_B_TO_A_CB_INDEX);
   } else {
     mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
     DrawRenderItem(mCommandList.Get(), &mPlayerRenderItem);
@@ -781,7 +800,7 @@ void PortalsApp::Draw(float dt) {
     // Render insides of portal A and part of player sticking out of portal A.
     DrawRoomsAndIntersectingPlayersForPortal(
         portalAStencilRef, &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
-        CLIP_PLANE_PORTAL_A_CB_INDEX, CLIP_PLANE_PORTAL_B_CB_INDEX, mPlayerIntersectPortalA,
+        CLIP_PLANE_PORTAL_A_B_CB_INDEX, CLIP_PLANE_PORTAL_B_A_CB_INDEX, mPlayerIntersectPortalA,
         WORLD2_PORTAL_A_TO_B_CB_INDEX, WORLD2_PORTAL_B_TO_A_CB_INDEX);
 
     // Clear stencil buffer for pixels inside portal A.
@@ -790,13 +809,13 @@ void PortalsApp::Draw(float dt) {
     // Render insides of portal B and part of player sticking out of portal B.
     DrawRoomsAndIntersectingPlayersForPortal(
         portalBStencilRef, &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations,
-        CLIP_PLANE_PORTAL_B_CB_INDEX, CLIP_PLANE_PORTAL_A_CB_INDEX, mPlayerIntersectPortalB,
+        CLIP_PLANE_PORTAL_B_A_CB_INDEX, CLIP_PLANE_PORTAL_A_B_CB_INDEX, mPlayerIntersectPortalB,
         WORLD2_PORTAL_B_TO_A_CB_INDEX, WORLD2_PORTAL_A_TO_B_CB_INDEX);
   } else {
     // Render insides of portal A.
     DrawRoomAndPlayerIterations(
         portalAStencilRef, &mPortalBoxARenderItem, portalACBIndexBase, portalAIterations,
-        CLIP_PLANE_PORTAL_B_CB_INDEX, true);
+        CLIP_PLANE_PORTAL_B_A_CB_INDEX, true);
 
     // Clear stencil buffer for pixels inside portal A and cover up its hole in the depth buffer.
     // This way, the first portal B box can't appear "in front" of portal A due to portal A's depth
@@ -807,7 +826,7 @@ void PortalsApp::Draw(float dt) {
     // Render insides of portal B.
     DrawRoomAndPlayerIterations(
         portalBStencilRef, &mPortalBoxBRenderItem, portalBCBIndexBase, portalBIterations,
-        CLIP_PLANE_PORTAL_A_CB_INDEX, true);
+        CLIP_PLANE_PORTAL_A_B_CB_INDEX, true);
 
   }
 
@@ -1099,10 +1118,13 @@ void PortalsApp::UpdateObjectCBs() {
 }
 
 void PortalsApp::UpdateClipPlaneCB(
-    int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset) {
+    int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset,
+    const XMFLOAT3& position2, const XMFLOAT3& normal2, float offset2) {
   ClipPlaneConstants clipPlaneCB;
   clipPlaneCB.ClipPlaneNormal = normal;
   clipPlaneCB.ClipPlaneOffset = XMFloat3Dot(position, normal) + offset;
+  clipPlaneCB.ClipPlane2Normal = normal2;
+  clipPlaneCB.ClipPlane2Offset = XMFloat3Dot(position2, normal2) + offset2;
 
   mCurrentFrameResource->ClipPlaneCB.CopyData(index, clipPlaneCB);
 }
@@ -1226,8 +1248,9 @@ void PortalsApp::DrawRoomAndPlayerIterations(
   }
 }
 
-void PortalsApp::DrawPlayerIterations(UINT stencilRef, int CBIndexBase, int numIterations) {
-  mCommandList->SetPipelineState(mPSOs["defaultClip"].Get());
+void PortalsApp::DrawPlayerIterations(
+    UINT stencilRef, int CBIndexBase, int numIterations, const std::string& psoName) {
+  mCommandList->SetPipelineState(mPSOs[psoName].Get());
 
   int passCBIndex = CBIndexBase;
   for (int i = 0; i < numIterations; ++i, ++stencilRef, ++passCBIndex) {
@@ -1251,14 +1274,14 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
   DrawRoomAndPlayerIterations(
       stencilRef, portalBoxRi, CBIndexBase, numIterations, clipPlaneOtherPortalCBIndex, false);
 
-  // Set clip plane to this portal
+  // Set clip plane 1 to this portal and clip plane 2 to other portal (using defaultClipTwice PSO)
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
       mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
           clipPlanePortalCBIndex));
   if (playerIntersectPortal) {
     // Draw larger half of players
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, "defaultClipTwice");
   } else {
     // Set world2 matrix to other-to-this.
     mCommandList->SetGraphicsRootConstantBufferView(
@@ -1266,7 +1289,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
         mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
             world2OtherToThisCBIndex));
     // Draw smaller half of players.
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, "defaultClipTwice");
     // Restore world2 matrix to identity.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_WORLD2_ROOT_INDEX,
@@ -1274,7 +1297,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
             WORLD2_IDENTITY_CB_INDEX));
   }
     
-  // Set clip plane to other portal
+  // Set clip plane to other portal (using defaultClip PSO)
   mCommandList->SetGraphicsRootConstantBufferView(
       CB_CLIP_PLANE_ROOT_INDEX,
       mCurrentFrameResource->ClipPlaneCB.GetResourceGPUVirtualAddress(
@@ -1286,7 +1309,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
         mCurrentFrameResource->World2CB.GetResourceGPUVirtualAddress(
             world2ThisToOtherCBIndex));
     // Draw smaller half of players.
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, "defaultClip");
     // Restore world2 matrix to identity.
     mCommandList->SetGraphicsRootConstantBufferView(
         CB_WORLD2_ROOT_INDEX,
@@ -1294,7 +1317,7 @@ void PortalsApp::DrawRoomsAndIntersectingPlayersForPortal(
             WORLD2_IDENTITY_CB_INDEX));
   } else {
     // Draw larger half of players.
-    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations);
+    DrawPlayerIterations(stencilRef, CBIndexBase, numIterations, "defaultClip");
   }
 }
 

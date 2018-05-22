@@ -76,7 +76,8 @@ private:
   void UpdateMaterialBuffer();
   void UpdateObjectCBs();
   void UpdateClipPlaneCB(
-      int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset);
+      int index, const XMFLOAT3& position, const XMFLOAT3& normal, float offset,
+      const XMFLOAT3& position2, const XMFLOAT3& normal2, float offset2);
   void UpdateWorld2CB(int index, const XMMATRIX& world2);
   void UpdatePassCB(
       int index, const XMMATRIX& viewProj, const XMFLOAT3& eyePosW, float distDilation);
@@ -93,7 +94,7 @@ private:
       int clipPlaneCBIndex, bool drawPlayers);
 
   void DrawPlayerIterations(
-    UINT stencilRef, int CBIndexBase, int numIterations);
+    UINT stencilRef, int CBIndexBase, int numIterations, const std::string& psoName);
 
   void DrawRoomsAndIntersectingPlayersForPortal(
       UINT stencilRef, RenderItem* portalBoxRi, int CBIndexBase, int numIterations,

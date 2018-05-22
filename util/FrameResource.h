@@ -17,8 +17,10 @@ struct ObjectConstants
 };
 
 struct ClipPlaneConstants {
-  DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 1.0f, 0.0f };
-  float ClipPlaneOffset = 0.0f;
+  DirectX::XMFLOAT3 ClipPlaneNormal = { 0.0f, 0.0f, 0.0f };
+  float ClipPlaneOffset = -1.0f;
+  DirectX::XMFLOAT3 ClipPlane2Normal = { 0.0f, 0.0f, 0.0f };
+  float ClipPlane2Offset = -1.0f;
 };
 
 struct World2Constants {
